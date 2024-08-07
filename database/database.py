@@ -1,9 +1,20 @@
 from sqlalchemy.orm import declarative_base, sessionmaker
-from sqlalchemy import create_engine
-from config.config import DB_NAME, DB_USER, DB_HOST, DB_PASSWORD, DB_PORT
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from typing import AsyncGenerator
+from settings import settings
 
-engine = create_engine(f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
+engine = create_async_engine(settings.db.url)
 
 Base = declarative_base()
-Session = sessionmaker(bind=engine)
-session = Session()
+async_session = sessionmaker(bind=engine, expire_on_commit=False, class_=AsyncSession)
+
+
+async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
+    async with async_session.begin() as session:
+        try:
+            yield session
+        except:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
