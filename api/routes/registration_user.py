@@ -1,10 +1,10 @@
-from database.models.user import User
-from database.database import get_async_session
+from api.database.models.user import User
+from api.database.database import get_async_session
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import APIRouter
-from schemas.user_schema import UserSchema
-from auth.utils import hash_password
+from api.schemas.user_schema import UserSchema
+from api.auth.utils import hash_password
 
 registration_router = APIRouter()
 

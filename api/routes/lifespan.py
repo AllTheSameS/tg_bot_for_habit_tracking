@@ -1,5 +1,5 @@
 import contextlib
-from database.database import Base, engine
+from api.database.database import Base, engine
 
 
 @contextlib.asynccontextmanager

@@ -25,15 +25,24 @@ BASE_DIR: Path = Path(__file__).parent
 
 class DbConfig(BaseModel):
 
-    db_dialect: str = os.getenv("DB_DIALECT")
-    db_driver: str = os.getenv("DB_DRIVER")
-    db_user: str = os.getenv("DB_USER")
-    db_password: str = os.getenv("DB_PASSWORD")
-    db_name: str = os.getenv("DB_NAME")
-    db_host: str = os.getenv("DB_HOST")
-    db_port: str = os.getenv("DB_PORT")
+    _db_dialect: str = os.getenv("DB_DIALECT")
+    _db_driver: str = os.getenv("DB_DRIVER")
+    _db_user: str = os.getenv("DB_USER")
+    _db_password: str = os.getenv("DB_PASSWORD")
+    _db_name: str = os.getenv("DB_NAME")
+    _db_host: str = os.getenv("DB_HOST")
+    _db_port: str = os.getenv("DB_PORT")
 
-    url: str = f"{db_dialect}+{db_driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+    url: str = f"{_db_dialect}+{_db_driver}://{_db_user}:{_db_password}@{_db_host}:{_db_port}/{_db_name}"
+
+
+class DBLiteConfig(BaseModel):
+    _db_dialect: str = os.getenv("DB_SQLITE_DIALECT")
+    _db_driver: str = os.getenv("DB_SQLITE_DRIVER")
+    _db_path: str = os.getenv("DB_SQLITE_PATH")
+    _db_name: str = os.getenv("DB_SQLITE_NAME")
+
+    url: str = f"{_db_dialect}+{_db_driver}://{_db_path}/{_db_name}"
 
 
 class AuthJWT(BaseModel):
@@ -63,6 +72,7 @@ class Settings(BaseSettings):
     auth_jwt: AuthJWT = AuthJWT()
     bot: Bot = Bot()
     db: DbConfig = DbConfig()
+    sqlite_db: DBLiteConfig = DBLiteConfig()
 
 
 client = httpx.AsyncClient()

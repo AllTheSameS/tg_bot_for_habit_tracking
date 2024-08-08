@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from database.models.user import User
+from api.database.models.user import User
 
 
 async def get_user_by_tg_user_id(

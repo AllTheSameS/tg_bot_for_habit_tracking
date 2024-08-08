@@ -1,6 +1,6 @@
-from database.database import Base
+from api.database.database import Base
 from sqlalchemy import Column, ForeignKey
-from sqlalchemy.dialects.postgresql import VARCHAR, INTEGER, DATE
+from sqlalchemy.dialects.postgresql import INTEGER, DATE
 
 
 class HabitTrackings(Base):

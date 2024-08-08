@@ -1,28 +1,25 @@
-from loader import bot, client
+from loader import bot
 from telebot.types import Message, CallbackQuery
 from settings import settings
 from telegram_bot.states.states import UserStates
+from telegram_bot.utils.get_user_token import get_token
 import requests
 
 
-@bot.message_handler(commands=["get_user_info"])
-async def get_user_info(message: Message | CallbackQuery):
+@bot.callback_query_handler(func=lambda call: call.data == "Информация о пользователе")
+async def get_user_info(call: CallbackQuery):
 
-    async with bot.retrieve_data(message.from_user.id) as data:
-        token = eval(data["token"].text)
+    token = await get_token(telegram_id=call.from_user.id)
 
     headers = {
-        "Authorization": token["token"]
+        "Authorization": token.access_token,
     }
 
-    res = await client.get(f"{settings.base_url}/user_info", headers=headers)
+    res = requests.get(f"{settings.base_url}/user_info", headers=headers)
+
+    text = f"Полное имя {res.json()["surname"]} {res.json()["name"]}"
 
     await bot.send_message(
-        chat_id=message.from_user.id,
-        text=res.text,
+        chat_id=call.message.chat.id,
+        text=text,
     )
-
-
-
-
-

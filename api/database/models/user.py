@@ -1,4 +1,4 @@
-from database.database import Base
+from api.database.database import Base
 from sqlalchemy import Column
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import VARCHAR, INTEGER, BYTEA, BOOLEAN

@@ -5,7 +5,7 @@ from api.routes.auth_user import auth_router
 from api.routes.lifespan import lifespan
 from api.routes.registration_user import registration_router
 from api.routes.get_user_info import get_info_user_router
-from httpx import AsyncClient
+
 
 storage = StateMemoryStorage()
 bot = AsyncTeleBot(
@@ -13,7 +13,6 @@ bot = AsyncTeleBot(
     state_storage=storage,
 )
 
-client = AsyncClient()
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(router=get_info_user_router)

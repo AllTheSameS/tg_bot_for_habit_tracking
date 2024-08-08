@@ -3,7 +3,7 @@ from telebot.types import Message
 from loader import bot
 
 
-@bot.message_handler(state=None)
+@bot.message_handler(func=lambda message: True)
 async def bot_echo(message: Message) -> None:
     """
     Функция, которая ловит неизвестные команды.

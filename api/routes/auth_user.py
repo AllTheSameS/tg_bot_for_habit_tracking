@@ -3,14 +3,14 @@ from fastapi import Depends
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from fastapi import APIRouter, status
 from jwt import InvalidTokenError
-from schemas import token_schemas, user_schema
+from api.schemas import user_schema
+from api.schemas import token_schemas
 from fastapi.exceptions import HTTPException
-from auth.utils import validate_password, encode_jwt, decode_jwt
+from api.auth.utils import validate_password, encode_jwt, decode_jwt
 from sqlalchemy.ext.asyncio import AsyncSession
-from database.database import get_async_session
+from api.database.database import get_async_session
 from sqlalchemy import select
-from database.models.user import User
-
+from api.database.models.user import User
 
 auth_router = APIRouter()
 
@@ -87,6 +87,7 @@ async def validate_auth_user(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="invalid username or password",
     )
+
     user = await session.execute(
         select(
             User
@@ -96,6 +97,7 @@ async def validate_auth_user(
     )
 
     if not (user := user.one_or_none()[0]):
+        print(unauthed_exc)
         raise unauthed_exc
 
     if not validate_password(
@@ -117,7 +119,7 @@ async def validate_auth_user(
 async def auth_user_issue_jwt(
         user: user_schema.UserSchema = Depends(validate_auth_user),
 ):
-    """Проверка на существование юзера и создание JWT токена."""
+    """Cоздание JWT токена."""
 
     payload = {
         "sub": user.telegram_id,
@@ -128,5 +130,6 @@ async def auth_user_issue_jwt(
     token = encode_jwt(payload=payload)
 
     return token_schemas.TokenSchemas(
-        token=f"Bearer {token}",
+        access_token=token,
+        token_type="Bearer",
     )

@@ -1,20 +1,23 @@
+"""Модуль авторизации пользователя."""
 from loader import bot
 from telebot.types import Message, CallbackQuery
 from settings import settings
 from telegram_bot.states.states import UserStates
 from telegram_bot.keyboards.inline.main_menu import main_menu
+from telegram_bot.utils.insert_token_db import insert_token
+from telegram_bot.schemas.user_token_schema import UserTokenSchemas
 import requests
 
 
-@bot.message_handler(commands=["authorisation"])
-async def login_user(message: Message | CallbackQuery) -> None:
+@bot.callback_query_handler(func=lambda call: call.data == "Вход")
+async def login_user(call: CallbackQuery) -> None:
     await bot.set_state(
-        user_id=message.from_user.id,
+        user_id=call.from_user.id,
         state=UserStates.auth
     )
 
     await bot.send_message(
-        chat_id=message.from_user.id,
+        chat_id=call.message.chat.id,
         text="Введите пароль",
     )
 
@@ -35,20 +38,22 @@ async def auth_user(message: Message) -> None:
         state=UserStates.main_menu,
     )
 
-    async with bot.retrieve_data(user_id=message.from_user.id) as data:
-        data["token"] = response
+    token = UserTokenSchemas(
+        telegram_id=message.from_user.id,
+        access_token=f"{response.json()["token_type"]} {response.json()["access_token"]}",
+    )
+
+    await insert_token(token_info=token)
 
     text = ("Авторизация прошла успешно.\n"
             "Вы в главном меню.\n"
             "Выберите действие.")
+
+    await bot.delete_message(message.chat.id, message.id)
 
     await bot.send_message(
         chat_id=message.chat.id,
         text=text,
         reply_markup=main_menu(),
     )
-
-
-
-
 

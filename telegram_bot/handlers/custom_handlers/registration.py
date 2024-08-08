@@ -6,18 +6,19 @@ from telegram_bot.states.states import UserStates
 import requests
 
 
-@bot.message_handler(commands=["registration"])
-async def cmd_registration(message: Message | CallbackQuery) -> None:
+@bot.callback_query_handler(func=lambda call: call.data == "Регистрация")
+async def cmd_registration(call: CallbackQuery) -> None:
     """Регистрация"""
+
     text = "Введите имя, фамилию и пароль."
 
     await bot.set_state(
-        user_id=message.from_user.id,
+        user_id=call.from_user.id,
         state=states.UserStates.registration,
     )
 
     await bot.send_message(
-        chat_id=message.from_user.id,
+        chat_id=call.message.chat.id,
         text=text,
     )
 
