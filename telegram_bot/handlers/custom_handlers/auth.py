@@ -10,6 +10,7 @@ import requests
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "Вход")
+@bot.message_handler(state=UserStates.login)
 async def login_user(call: CallbackQuery) -> None:
     await bot.set_state(
         user_id=call.from_user.id,

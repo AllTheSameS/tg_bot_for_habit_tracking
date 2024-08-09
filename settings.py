@@ -59,6 +59,7 @@ class Bot(BaseModel):
         ("registration", "Регистрация"),
         ("authorisation", "Вход"),
         ("main_menu", "Главное меню"),
+        ("create_habit", "Создание привычки"),
     )
 
 

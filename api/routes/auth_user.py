@@ -97,7 +97,6 @@ async def validate_auth_user(
     )
 
     if not (user := user.one_or_none()[0]):
-        print(unauthed_exc)
         raise unauthed_exc
 
     if not validate_password(
