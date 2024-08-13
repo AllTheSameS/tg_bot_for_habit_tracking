@@ -7,6 +7,8 @@ get_info_user_router = APIRouter()
 
 @get_info_user_router.get(
     path="/user_info",
+    tags=["GET"],
+    description="Displaying information about yourself",
 )
 async def get_info_user(
         payload: dict = Depends(get_current_token_payload),

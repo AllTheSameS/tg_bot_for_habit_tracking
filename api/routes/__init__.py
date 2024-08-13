@@ -3,3 +3,9 @@ from . import registration_user
 from . import lifespan
 from . import utils
 from . import get_user_info
+from . import create_habit
+from . import habit_editing
+from . import remove_habit
+from . import get_habit_by_title_or_id
+from . import get_all_habits
+from . import perform_habit

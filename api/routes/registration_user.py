@@ -12,6 +12,8 @@ registration_router = APIRouter()
 @registration_router.post(
     path="/registration",
     response_model=UserSchema,
+    tags=["Registration"],
+    description="User registration",
 )
 async def registration_user(
         user_info: UserSchema,

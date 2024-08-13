@@ -3,7 +3,7 @@ from pydantic import BaseModel, ConfigDict
 
 class UserSchema(BaseModel):
     model_config = ConfigDict(strict=True)
-
+    id: int
     name: str
     surname: str
     telegram_id: int

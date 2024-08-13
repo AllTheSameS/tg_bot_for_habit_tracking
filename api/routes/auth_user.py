@@ -40,19 +40,20 @@ async def get_current_token_payload(
 
 async def get_current_auth_user(
         payload: dict = Depends(get_current_token_payload),
-        session: AsyncSession = Depends(get_async_session)
+        session: AsyncSession = Depends(get_async_session),
 ) -> user_schema.UserSchema:
 
     user = await session.execute(
         select(
             User
         ).filter(
-            User.telegram_id == payload.get("sub")
+            User.telegram_id == payload.get("telegram_id")
         )
     )
 
     if user := user.one_or_none()[0]:
         return user_schema.UserSchema(
+            id=user.id,
             name=user.name,
             surname=user.surname,
             is_active=user.is_active,
@@ -83,6 +84,7 @@ async def validate_auth_user(
         user_form: Annotated[OAuth2PasswordRequestForm, Depends()],
         session: AsyncSession = Depends(get_async_session)
 ):
+
     unauthed_exc = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="invalid username or password",
@@ -96,8 +98,16 @@ async def validate_auth_user(
         )
     )
 
-    if not (user := user.one_or_none()[0]):
-        raise unauthed_exc
+    try:
+
+        if not (user := user.one_or_none()[0]):
+            raise unauthed_exc
+
+    except TypeError as exc:
+        raise HTTPException(
+            status_code=status.H,
+            detail="invalid username or password",
+        )
 
     if not validate_password(
         password=user_form.password,
@@ -114,14 +124,20 @@ async def validate_auth_user(
     return user
 
 
-@auth_router.post("/login", response_model=token_schemas.TokenSchemas)
+@auth_router.post(
+    "/login",
+    response_model=token_schemas.TokenSchemas,
+    tags=["Authorization"],
+    description="User authorization",
+)
 async def auth_user_issue_jwt(
         user: user_schema.UserSchema = Depends(validate_auth_user),
 ):
     """Cоздание JWT токена."""
 
     payload = {
-        "sub": user.telegram_id,
+        "sub": user.id,
+        "telegram_id": user.telegram_id,
         "name": user.name,
         "surname": user.surname,
     }
