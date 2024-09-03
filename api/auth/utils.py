@@ -1,3 +1,5 @@
+"""Модуль работы с токеном и паролем."""
+
 from settings import settings
 import datetime
 import jwt
@@ -11,23 +13,23 @@ def encode_jwt(
     expire_minutes: int = settings.auth_jwt.access_token_expire_minutes,
     expire_timedelta: datetime.timedelta | None = None,
 ) -> str:
+    """Шифрование токена."""
 
-    """Шифровка токена."""
-
-    to_encode = payload.copy()
-    now = datetime.datetime.now(datetime.UTC)
+    to_encode: dict = payload.copy()
+    now: datetime = datetime.datetime.now(datetime.UTC)
 
     if expire_timedelta:
-        expire = now + expire_timedelta
+        expire: datetime = now + expire_timedelta
 
     else:
-        expire = now + datetime.timedelta(minutes=expire_minutes)
+        expire: datetime = now + datetime.timedelta(minutes=expire_minutes)
 
     to_encode.update(
         exp=expire,
         iat=now,
     )
-    encoded = jwt.encode(
+
+    encoded: str = jwt.encode(
         to_encode,
         private_key,
         algorithm=algorithm,
@@ -42,6 +44,7 @@ def decode_jwt(
     algorithm: str = settings.auth_jwt.algorithm,
 ) -> dict:
     """Расшифровка токена."""
+
     decoded = jwt.decode(
         token,
         public_key,
@@ -54,8 +57,11 @@ def decode_jwt(
 def hash_password(
     password: str,
 ) -> bytes:
-    salt = bcrypt.gensalt()
+    """Хеширование пароля."""
+
+    salt: bytes = bcrypt.gensalt()
     pwd_bytes: bytes = password.encode()
+
     return bcrypt.hashpw(pwd_bytes, salt)
 
 
@@ -63,6 +69,8 @@ def validate_password(
     password: str,
     hashed_password: bytes,
 ) -> bool:
+    """Валидация пароля."""
+
     return bcrypt.checkpw(
         password=password.encode(),
         hashed_password=hashed_password,

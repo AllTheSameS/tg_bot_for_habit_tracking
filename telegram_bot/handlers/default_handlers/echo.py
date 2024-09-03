@@ -1,5 +1,4 @@
 from telebot.types import Message
-
 from loader import bot
 
 
@@ -10,6 +9,5 @@ async def bot_echo(message: Message) -> None:
     """
     await bot.reply_to(
         message,
-        f"Неизвестная команда.\n"
-        f"Введите команду /help.",
+        f"Неизвестная команда.\n" f"Введите команду /help.",
     )

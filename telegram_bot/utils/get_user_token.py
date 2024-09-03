@@ -1,34 +1,44 @@
-import requests
-
+import httpx
+from loader import bot
 from telegram_bot.sqlite_db.models.models import UserToken
-from fastapi.exceptions import HTTPException
-from fastapi import status
+from telegram_bot.keyboards.inline.start_keyboard import login_kb, registration_kb
 from settings import settings
+from typing import Any
 
 
-async def get_token(telegram_id: int):
+async def get_header(telegram_id: int) -> dict:
+    """
+    Получение хедера.
+    """
 
-    token = await UserToken.get_user_token(telegram_id=telegram_id)
+    token: Any = await UserToken.get_user_token(telegram_id=telegram_id)
 
     if token:
 
-        headers = {
+        header: dict = {
             "Authorization": token.access_token,
         }
 
-        response = requests.get(f"{settings.base_url}/user_info", headers=headers)
+        async with httpx.AsyncClient() as client:
+            response: httpx.Response = await client.get(
+                f"{settings.base_url}/user_info", headers=header
+            )
 
         if response.status_code == 401:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="invalid token error",
+            await bot.send_message(
+                chat_id=telegram_id,
+                text="Войдите",
+                reply_markup=login_kb(),
             )
 
         else:
-            return token
+
+            return header
 
     else:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid token error",
+
+        await bot.send_message(
+            chat_id=telegram_id,
+            text="Вы не зарегистрированы.",
+            reply_markup=registration_kb(),
         )

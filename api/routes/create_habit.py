@@ -1,87 +1,99 @@
 from fastapi import APIRouter, Depends, status
 from fastapi.exceptions import HTTPException
-from api.schemas.user_schema import UserSchema
-from api.schemas.habit_info_schema import HabitInfoSchema
+from api.schemas.user_schema import UserLoginSchema
+from api.schemas.new_habit_schema import NewHabitSchemaIn, NewHabitSchemaOut
 from api.routes.auth_user import get_current_token_payload, get_current_active_auth_user
+from api.routes.utils.get_habit_by_title import get_habit_by_title
 from api.database.database import get_async_session
-from api.database.models.user import User
 from api.database.models.habit import Habit
 from api.database.models.habit_trackings import HabitTrackings
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+
 import datetime
 
-create_new_habit_router = APIRouter()
+create_new_habit_router: APIRouter = APIRouter()
 
 
 @create_new_habit_router.post(
     path="/habit/create",
     tags=["POST"],
     description="Creating a new habit",
+    response_model=NewHabitSchemaOut,
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        status.HTTP_201_CREATED: {
+            "description": "Creating a new habit.",
+        },
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "Invalid time format.",
+        },
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "invalid token error.",
+        },
+        status.HTTP_409_CONFLICT: {
+            "description": "A habit with this name already exists.",
+        },
+    },
 )
 async def create_habit(
-        habit_info: HabitInfoSchema,
-        payload: dict = Depends(get_current_token_payload),
-        user: UserSchema = Depends(get_current_active_auth_user),
-        session: AsyncSession = Depends(get_async_session),
-):
+    habit_info: NewHabitSchemaIn,
+    payload: dict = Depends(get_current_token_payload),
+    user: UserLoginSchema = Depends(get_current_active_auth_user),
+    session: AsyncSession = Depends(get_async_session),
+) -> NewHabitSchemaOut:
     """Создание привычки."""
 
-    telegram_id = 0
-
-    user_id = await session.execute(
-        select(
-            User
-        ).filter(
-            User.telegram_id == telegram_id
-        )
+    check_habit_title: Habit = await get_habit_by_title(
+        habit_title=habit_info.title,
+        user_id=payload.get("user_id"),
+        session=session,
     )
 
-    if user_id := user_id.one_or_none():
-        if user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="There is no user with this ID in the database.",
-            )
-
-        else:
-            user_id = user_id[0].id
-
-    check_habit_title = await session.execute(
-        select(
-            Habit
-        ).filter(
-            Habit.title == habit_info.title
-        )
-    )
-
-    if check_habit_title.one_or_none():
+    if check_habit_title:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_409_CONFLICT,
             detail="A habit with this name already exists.",
         )
 
-    else:
-        new_habit = Habit(
-            title=habit_info.title,
-            user_id=user_id,
-            description=habit_info.description,
-        )
+    new_habit: Habit = Habit(
+        title=habit_info.title,
+        user_id=user.id,
+        description=habit_info.description,
+    )
 
-        session.add(new_habit)
-        await session.flush()
+    session.add(new_habit)
+    await session.flush()
 
-        hour, minutes = habit_info.alert_time.split(':')
+    if habit_info.alert_time:
 
-        new_habit_tracking = HabitTrackings(
-            habit_id=new_habit.id,
-            alert_time=datetime.time(
-                hour=int(hour),
-                minute=int(minutes),
+        try:
+
+            habit_info.alert_time = (
+                datetime.datetime.strptime(
+                    habit_info.alert_time,
+                    "%H:%M",
+                )
+                .time()
+                .replace(
+                    tzinfo=datetime.timezone.utc,
+                )
             )
-        )
 
-        session.add(new_habit_tracking)
-        await session.commit()
+        except ValueError:
 
-        return f"Привычка {new_habit.title} успешно добавлена."
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid time format.",
+            )
+
+    new_habit_tracking: HabitTrackings = HabitTrackings(
+        habit_id=new_habit.id,
+        alert_time=habit_info.alert_time,
+    )
+
+    session.add(new_habit_tracking)
+
+    await session.refresh(new_habit)
+    await session.commit()
+
+    return new_habit

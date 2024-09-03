@@ -1,40 +1,66 @@
 from fastapi import APIRouter, Depends, status
 from fastapi.exceptions import HTTPException
-from api.schemas.user_schema import UserSchema
-from api.schemas.habit_editing import HabitEditingSchema
-from api.routes.auth_user import get_current_token_payload, get_current_active_auth_user
-from api.database.database import get_async_session
+
 from api.database.models.habit import Habit
-from api.database.models.habit_trackings import HabitTrackings
-from api.routes.utils.get_habit_by_title_or_id import get_habit_by_title_or_id
+from api.schemas.habit_schema import HabitSchema
+from api.routes.auth_user import get_current_token_payload
+from api.database.database import get_async_session
+from api.routes.utils.get_habit_by_title import get_habit_by_title
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import delete
-
-perform_habit_router = APIRouter()
 
 
-@perform_habit_router.post(
-    path="/habit/perform",
-    tags=["POST"],
-    description="Fixation of habit execution",
+perform_habit_router: APIRouter = APIRouter()
+
+
+@perform_habit_router.patch(
+    path="/habit/perform/{title}",
+    tags=["DELETE"],
+    description="Fixation of habit execution.",
+    responses={
+        status.HTTP_200_OK: {
+            "model": HabitSchema,
+            "description": "Fixation of habit execution.",
+        },
+        status.HTTP_204_NO_CONTENT: {
+            "description": "Habit removed.",
+        },
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "invalid token error.",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Habit not found.",
+        },
+    },
 )
 async def perform_habit(
-        habit_title_or_id: str | int,
-        payload: dict = Depends(get_current_token_payload),
-        user: UserSchema = Depends(get_current_active_auth_user),
-        session: AsyncSession = Depends(get_async_session),
-):
-    """Фиксация выполнения привычки."""
+    title: str,
+    payload: dict = Depends(get_current_token_payload),
+    session: AsyncSession = Depends(get_async_session),
+) -> HabitSchema | None:
+    """Выполнение привычки."""
 
-    habit = await get_habit_by_title_or_id(
-        habit_title_or_id=habit_title_or_id,
+    habit: Habit = await get_habit_by_title(
+        habit_title=title,
         session=session,
+        user_id=payload.get("user_id"),
     )
 
-    habit.habits_tracking[0].count -= 1
+    if habit:
+        habit.habits_tracking[0].count -= 1
 
-    if habit.habits_tracking[0].count < 1:
-        await session.delete(habit)
-        return {"Привычка успешно выполнена."}
+        if habit.habits_tracking[0].count < 1:
+            await session.delete(habit)
+            await session.commit()
+            raise HTTPException(
+                status_code=status.HTTP_204_NO_CONTENT,
+                detail="Habit removed.",
+            )
 
-    return {"Осталось дней": habit.habits_tracking[0].count}
+        else:
+            return habit
+
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Habit not found.",
+        )

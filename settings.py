@@ -1,16 +1,12 @@
 """
-Модуль в котором хранятся все константы.
-Attributes:
-    DATABASE_URL - Путь к базе данных
-    BOT_TOKEN - Токен бота, полученный у @BotFather
-    DEFAULT_COMMANDS - Команды поддерживаемые ботом
+Модуль хранения констант.
 """
+
 import os
 from dotenv import load_dotenv, find_dotenv
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 from pathlib import Path
-import httpx
 
 
 if not find_dotenv():
@@ -33,7 +29,9 @@ class DbConfig(BaseModel):
     _db_host: str = os.getenv("DB_HOST")
     _db_port: str = os.getenv("DB_PORT")
 
-    url: str = f"{_db_dialect}+{_db_driver}://{_db_user}:{_db_password}@{_db_host}:{_db_port}/{_db_name}"
+    url: str = (
+        f"{_db_dialect}+{_db_driver}://{_db_user}:{_db_password}@{_db_host}:{_db_port}/{_db_name}"
+    )
 
 
 class DBLiteConfig(BaseModel):
@@ -56,10 +54,6 @@ class Bot(BaseModel):
     default_commands: tuple = (
         ("start", "Старт"),
         ("help", "Вывести справку"),
-        ("registration", "Регистрация"),
-        ("authorisation", "Вход"),
-        ("main_menu", "Главное меню"),
-        ("create_habit", "Создание привычки"),
     )
 
 
@@ -76,6 +70,4 @@ class Settings(BaseSettings):
     sqlite_db: DBLiteConfig = DBLiteConfig()
 
 
-client = httpx.AsyncClient()
-
-settings = Settings()
+settings: Settings = Settings()
