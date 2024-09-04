@@ -101,7 +101,7 @@ async def create_new_habit(message: Message):
     if response.status_code == 201:
 
         if data["alert_time"]:
-            alert_time = await true_time(response.json()["habits_tracking"][0]["alert_time"])
+            alert_time = response.json()["habits_tracking"][0]["alert_time"][11:-9]
 
             hour, minute = alert_time.split(":")
 
@@ -111,6 +111,7 @@ async def create_new_habit(message: Message):
                 trigger="cron",
                 hour=int(hour),
                 minute=int(minute),
+                timezone="Asia/Novosibirsk",
                 args=(
                     message.from_user.id,
                     response.json()["title"],

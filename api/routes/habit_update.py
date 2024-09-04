@@ -1,4 +1,3 @@
-import pytz
 from fastapi import APIRouter, Depends, status
 from fastapi.exceptions import HTTPException
 from api.schemas.habit_schema import HabitSchema
@@ -11,8 +10,8 @@ from api.database.models.habit_trackings import HabitTrackings
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update, select
 from sqlalchemy.exc import CompileError
-from zoneinfo import ZoneInfo
 
+import pytz
 import datetime
 
 habit_editing_router: APIRouter = APIRouter()
@@ -78,6 +77,7 @@ async def habit_update(
     new_info: dict = habit_info.model_dump(exclude_unset=True, exclude={"alert_time"})
 
     if habit_info.alert_time:
+
         try:
 
             habit_info.alert_time = datetime.datetime.strptime(
@@ -89,26 +89,26 @@ async def habit_update(
                 )
             )
 
-        except ValueError as exc:
+        except ValueError:
 
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid time format.",
             )
 
-    await session.execute(
-        update(
-            HabitTrackings,
+        await session.execute(
+            update(
+                HabitTrackings,
+            )
+            .where(
+                HabitTrackings.habit_id == habit.id,
+            )
+            .values(
+                {"alert_time": habit_info.alert_time},
+            )
         )
-        .where(
-            HabitTrackings.habit_id == habit.id,
-        )
-        .values(
-            {"alert_time": habit_info.alert_time},
-        )
-    )
 
-    await session.flush()
+        await session.flush()
 
     if new_info:
         try:
