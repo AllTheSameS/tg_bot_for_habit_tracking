@@ -1,4 +1,3 @@
-import pytz
 from fastapi import APIRouter, Depends, status
 from fastapi.exceptions import HTTPException
 from api.schemas.user_schema import UserLoginSchema
@@ -10,6 +9,7 @@ from api.database.models.habit import Habit
 from api.database.models.habit_trackings import HabitTrackings
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import pytz
 import datetime
 
 create_new_habit_router: APIRouter = APIRouter()
@@ -69,7 +69,7 @@ async def create_habit(
 
         try:
 
-            habit_info.alert_time = habit_info.alert_time = datetime.datetime.strptime(
+            habit_info.alert_time = datetime.datetime.strptime(
                 habit_info.alert_time,
                 "%H:%M",
             ).replace(

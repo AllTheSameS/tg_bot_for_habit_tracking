@@ -101,9 +101,7 @@ async def save_title_habit(call: CallbackQuery) -> None:
                     text=(
                         f"Название: {response.json()["title"]}\n"
                         f"Описание: {response.json()["description"]}\n"
-                        f"Время оповещения: {
-                          await true_time(response.json()["habits_tracking"][0]["alert_time"])
-                          }\n"
+                        f"Время оповещения: {await true_time(response.json()["habits_tracking"][0]["alert_time"])}\n"
                         f"Осталось дней: {response.json()["habits_tracking"][0]["count"]}"
                     ),
                     message_id=call.message.message_id,
@@ -270,7 +268,7 @@ async def action_update(call: CallbackQuery) -> None:
 
         await bot.set_state(
             user_id=call.from_user.id,
-            state=action_update,
+            state=AllHabitsStates.action_update,
         )
         await bot.edit_message_text(
             chat_id=call.message.chat.id,
@@ -287,8 +285,8 @@ async def new_data(call: CallbackQuery) -> None:
     """
 
     fields = {
-        "title": "названия",
-        "description": "описания",
+        "title": "название",
+        "description": "описание",
         "alert_time": "временя напоминания",
     }
 
@@ -300,11 +298,17 @@ async def new_data(call: CallbackQuery) -> None:
     async with bot.retrieve_data(user_id=call.from_user.id) as data:
         data["field"] = call.data.split(".")[1]
 
+    if data["field"] == "alert_time":
+        murkup = back_or_delete_alert_time("update")
+
+    else:
+        murkup = back("update")
+
     await bot.edit_message_text(
         chat_id=call.message.chat.id,
         message_id=call.message.message_id,
         text=f"Введите новое {fields[data["field"]]}.",
-        reply_markup=back_or_delete_alert_time("update"),
+        reply_markup=murkup,
     )
 
 
@@ -349,6 +353,7 @@ async def successful_update(message: Message) -> None:
                         trigger="cron",
                         hour=hour,
                         minute=minute,
+                        timezone="Asia/Novosibirsk",
                     )
 
                 else:
@@ -358,6 +363,7 @@ async def successful_update(message: Message) -> None:
                         trigger="cron",
                         hour=int(hour),
                         minute=int(minute),
+                        timezone="Asia/Novosibirsk",
                         args=(
                             message.from_user.id,
                             response.json()["title"],
@@ -373,13 +379,15 @@ async def successful_update(message: Message) -> None:
             if data["field"] == "title":
                 data["habit"] = message.text
 
+            alert_time = await true_time(response.json()["habits_tracking"][0]["alert_time"])
+
             await bot.send_message(
                 chat_id=message.from_user.id,
                 text=(
                     f"Привычка успешно изменена!\n\n"
                     f"Название: {response.json()["title"]}\n"
                     f"Описание: {response.json()["description"]}\n"
-                    f"Время оповещения: {await true_time(response.json()["habits_tracking"][0]["alert_time"])}\n"
+                    f"Время оповещения: {alert_time}\n"
                     f"Осталось дней: {response.json()["habits_tracking"][0]["count"]}"
                 ),
                 reply_markup=update_kb(data["habit"]),
