@@ -4,7 +4,7 @@ async def true_time(time: str | None) -> str | None:
 
     try:
 
-        time = time[:5]
+        time = time[11:-9]
 
     except TypeError:
         return None

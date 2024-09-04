@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, AwareDatetime
 from datetime import time
 
 
@@ -14,5 +14,5 @@ class HabitTrackingSchema(BaseModel):
 
     id: int
     habit_id: int
-    alert_time: time | None
+    alert_time: time | AwareDatetime | None
     count: int

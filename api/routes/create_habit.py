@@ -1,3 +1,4 @@
+import pytz
 from fastapi import APIRouter, Depends, status
 from fastapi.exceptions import HTTPException
 from api.schemas.user_schema import UserLoginSchema
@@ -68,14 +69,12 @@ async def create_habit(
 
         try:
 
-            habit_info.alert_time = (
-                datetime.datetime.strptime(
-                    habit_info.alert_time,
-                    "%H:%M",
-                )
-                .time()
-                .replace(
-                    tzinfo=datetime.timezone.utc,
+            habit_info.alert_time = habit_info.alert_time = datetime.datetime.strptime(
+                habit_info.alert_time,
+                "%H:%M",
+            ).replace(
+                tzinfo=pytz.timezone(
+                    "Asia/Novosibirsk",
                 )
             )
 

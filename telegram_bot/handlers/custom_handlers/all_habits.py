@@ -334,14 +334,15 @@ async def successful_update(message: Message) -> None:
 
         if data["field"] == "alert_time" and response.status_code == 200:
 
-            alert_time: Any = response.json()["habits_tracking"][0]["alert_time"]
+            alert_time: Any = await true_time(response.json()["habits_tracking"][0]["alert_time"])
 
             check_job: Job = scheduler.get_job(
                 job_id=str(response.json()["habits_tracking"][0]["habit_id"]),
             )
 
             if alert_time:
-                hour, minute, _ = alert_time.split(":")
+
+                hour, minute = alert_time.split(":")
 
                 if check_job:
                     check_job.reschedule(

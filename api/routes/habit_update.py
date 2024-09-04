@@ -1,3 +1,4 @@
+import pytz
 from fastapi import APIRouter, Depends, status
 from fastapi.exceptions import HTTPException
 from api.schemas.habit_schema import HabitSchema
@@ -10,6 +11,7 @@ from api.database.models.habit_trackings import HabitTrackings
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update, select
 from sqlalchemy.exc import CompileError
+from zoneinfo import ZoneInfo
 
 import datetime
 
@@ -78,18 +80,16 @@ async def habit_update(
     if habit_info.alert_time:
         try:
 
-            habit_info.alert_time = (
-                datetime.datetime.strptime(
-                    habit_info.alert_time,
-                    "%H:%M",
-                )
-                .time()
-                .replace(
-                    tzinfo=datetime.timezone.utc,
+            habit_info.alert_time = datetime.datetime.strptime(
+                habit_info.alert_time,
+                "%H:%M",
+            ).replace(
+                tzinfo=pytz.timezone(
+                    "Asia/Novosibirsk",
                 )
             )
 
-        except ValueError:
+        except ValueError as exc:
 
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
