@@ -1,4 +1,6 @@
 """Модуль запуска бота."""
+import os
+import time
 
 from loader import bot
 from telegram_bot import handlers
@@ -22,4 +24,5 @@ async def start():
 
 
 if __name__ == "__main__":
+    os.environ["TZ"] = "UTC"
     asyncio.run(start())

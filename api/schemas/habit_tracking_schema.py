@@ -14,5 +14,5 @@ class HabitTrackingSchema(BaseModel):
 
     id: int
     habit_id: int
-    alert_time: time | AwareDatetime | None
+    alert_time: time | None
     count: int

@@ -101,9 +101,9 @@ async def create_new_habit(message: Message):
     if response.status_code == 201:
 
         if data["alert_time"]:
-            alert_time = response.json()["habits_tracking"][0]["alert_time"][11:-9]
+            alert_time = response.json()["habits_tracking"][0]["alert_time"]
 
-            hour, minute = alert_time.split(":")
+            hour, minute, _ = alert_time.split(":")
 
             scheduler.add_job(
                 id=str(response.json()["id"]),
@@ -124,7 +124,7 @@ async def create_new_habit(message: Message):
                 f"Привычка добавлена!\n\n"
                 f"Название: {response.json()["title"]}\n"
                 f"Описание: {response.json()["description"]}\n"
-                f"Время оповещения: {alert_time}\n"
+                f"Время оповещения: {response.json()["habits_tracking"][0]["alert_time"]}\n"
                 f"Осталось дней: {response.json()["habits_tracking"][0]["count"]}"
             ),
             reply_markup=main_menu(),

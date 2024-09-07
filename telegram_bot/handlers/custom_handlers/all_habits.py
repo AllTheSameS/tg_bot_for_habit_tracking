@@ -101,7 +101,7 @@ async def save_title_habit(call: CallbackQuery) -> None:
                     text=(
                         f"Название: {response.json()["title"]}\n"
                         f"Описание: {response.json()["description"]}\n"
-                        f"Время оповещения: {await true_time(response.json()["habits_tracking"][0]["alert_time"])}\n"
+                        f"Время оповещения: {response.json()["habits_tracking"][0]["alert_time"]}\n"
                         f"Осталось дней: {response.json()["habits_tracking"][0]["count"]}"
                     ),
                     message_id=call.message.message_id,
@@ -162,7 +162,7 @@ async def action_perform(call: CallbackQuery) -> None:
                         f"Привычка выполнена!\n\n"
                         f"Название: {response.json()["title"]}\n"
                         f"Описание: {response.json()["description"]}\n"
-                        f"Время оповещения: {await true_time(response.json()["habits_tracking"][0]["alert_time"])}\n"
+                        f"Время оповещения: {response.json()["habits_tracking"][0]["alert_time"]}\n"
                         f"Осталось дней: {response.json()["habits_tracking"][0]["count"]}"
                     ),
                     message_id=call.message.message_id,
@@ -338,7 +338,7 @@ async def successful_update(message: Message) -> None:
 
         if data["field"] == "alert_time" and response.status_code == 200:
 
-            alert_time: Any = await true_time(response.json()["habits_tracking"][0]["alert_time"])
+            alert_time = response.json()["habits_tracking"][0]["alert_time"]
 
             check_job: Job = scheduler.get_job(
                 job_id=str(response.json()["habits_tracking"][0]["habit_id"]),
@@ -346,14 +346,13 @@ async def successful_update(message: Message) -> None:
 
             if alert_time:
 
-                hour, minute = alert_time.split(":")
+                hour, minute, _ = alert_time.split(":")
 
                 if check_job:
                     check_job.reschedule(
                         trigger="cron",
                         hour=hour,
                         minute=minute,
-                        timezone="Asia/Novosibirsk",
                     )
 
                 else:
@@ -363,7 +362,6 @@ async def successful_update(message: Message) -> None:
                         trigger="cron",
                         hour=int(hour),
                         minute=int(minute),
-                        timezone="Asia/Novosibirsk",
                         args=(
                             message.from_user.id,
                             response.json()["title"],
@@ -379,15 +377,13 @@ async def successful_update(message: Message) -> None:
             if data["field"] == "title":
                 data["habit"] = message.text
 
-            alert_time = await true_time(response.json()["habits_tracking"][0]["alert_time"])
-
             await bot.send_message(
                 chat_id=message.from_user.id,
                 text=(
                     f"Привычка успешно изменена!\n\n"
                     f"Название: {response.json()["title"]}\n"
                     f"Описание: {response.json()["description"]}\n"
-                    f"Время оповещения: {alert_time}\n"
+                    f"Время оповещения: {response.json()["habits_tracking"][0]["alert_time"]}\n"
                     f"Осталось дней: {response.json()["habits_tracking"][0]["count"]}"
                 ),
                 reply_markup=update_kb(data["habit"]),

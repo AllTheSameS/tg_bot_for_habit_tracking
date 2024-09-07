@@ -2,7 +2,7 @@
 
 from api.database.database import Base
 from sqlalchemy import Column, ForeignKey
-from sqlalchemy.dialects.postgresql import INTEGER, TIMESTAMP
+from sqlalchemy.dialects.postgresql import INTEGER, TIME
 
 
 class HabitTrackings(Base):
@@ -22,5 +22,5 @@ class HabitTrackings(Base):
     habit_id: Column[INTEGER] = Column(
         INTEGER, ForeignKey("habits.id", ondelete="CASCADE"), nullable=False
     )
-    alert_time: Column[TIMESTAMP] = Column(TIMESTAMP(timezone=True))
+    alert_time: Column[TIME] = Column(TIME())
     count: Column[INTEGER] = Column(INTEGER, default=21)

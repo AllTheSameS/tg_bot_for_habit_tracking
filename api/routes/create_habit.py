@@ -72,11 +72,7 @@ async def create_habit(
             habit_info.alert_time = datetime.datetime.strptime(
                 habit_info.alert_time,
                 "%H:%M",
-            ).replace(
-                tzinfo=pytz.timezone(
-                    "Asia/Novosibirsk",
-                )
-            )
+            ).time()
 
         except ValueError:
 
