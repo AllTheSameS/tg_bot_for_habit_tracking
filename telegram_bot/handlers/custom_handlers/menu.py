@@ -1,5 +1,5 @@
 from loader import bot
-from telebot.types import CallbackQuery, Message
+from telebot.types import CallbackQuery
 from telegram_bot.utils.get_user_token import get_header
 from telegram_bot.keyboards.inline.main_keyboard import main_menu
 

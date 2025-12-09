@@ -8,6 +8,7 @@ class UserRegistrationStates(StatesGroup):
 
     registration_name = State()
     registration_surname = State()
+    registration_timezone = State()
     registration_password = State()
 
 
@@ -29,6 +30,7 @@ class AllHabitsStates(StatesGroup):
     action_update = State()
     new_data = State()
     update = State()
+    update_alert_time = State()
 
 
 class UserCreateHabitStates(StatesGroup):

@@ -5,3 +5,4 @@ from . import habit_tracking_schema
 from . import habit_schema
 from . import new_habit_schema
 from . import habit_update_schema
+from . import user_update_schema

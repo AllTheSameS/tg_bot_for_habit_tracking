@@ -15,6 +15,7 @@ class NewHabitSchemaIn(BaseModel):
     title: str
     description: str
     alert_time: str | None = None
+    timezone: str | None = None
 
 
 class NewHabitSchemaOut(BaseModel):

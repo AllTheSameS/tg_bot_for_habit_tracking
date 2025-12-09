@@ -1,8 +1,9 @@
+from timezonefinder import TimezoneFinder
 from loader import bot
-from telebot.types import CallbackQuery, Message
+from telebot.types import CallbackQuery, Message, ReplyKeyboardRemove
 from settings import settings
 from telegram_bot.utils.get_user_token import get_header
-from telegram_bot.utils.true_time import true_time
+from telegram_bot.keyboards.reply.timezone_keyboard import timezone
 from telegram_bot.keyboards.inline.habits_keyboard import habits_kb
 from telegram_bot.keyboards.inline.action_keyboard import action_kb
 from telegram_bot.keyboards.inline.main_keyboard import main_menu, create_habit_kb
@@ -31,10 +32,10 @@ async def get_all_habits(call: CallbackQuery) -> None:
     )
 
     if header:
-
         async with httpx.AsyncClient() as client:
             response: httpx.Response = await client.get(
-                f"{settings.base_url}/habit/all", headers=header
+                f"{settings.base_url}/habit/all",
+                headers=header,
             )
 
         if response.json():
@@ -54,7 +55,7 @@ async def get_all_habits(call: CallbackQuery) -> None:
                 )
 
                 async with bot.retrieve_data(user_id=call.from_user.id) as data:
-                    data["headers"] = header
+                    data["header"] = header
 
             elif response.status_code == 401:
 
@@ -91,7 +92,7 @@ async def save_title_habit(call: CallbackQuery) -> None:
 
             response: httpx.Response = await client.get(
                 f"{settings.base_url}/habit/title/{data["habit"]}",
-                headers=data["headers"],
+                headers=data["header"],
             )
 
             if response.status_code == 200:
@@ -151,7 +152,7 @@ async def action_perform(call: CallbackQuery) -> None:
         async with httpx.AsyncClient() as client:
             response: httpx.Response = await client.patch(
                 f"{settings.base_url}/habit/perform/{data["habit"]}",
-                headers=data["headers"],
+                headers=data["header"],
             )
 
             if response.status_code == 200:
@@ -220,7 +221,7 @@ async def action_delete(call: CallbackQuery) -> None:
         async with httpx.AsyncClient() as client:
             response: httpx.Response = await client.delete(
                 f"{settings.base_url}/habit/remove/{data["habit"]}",
-                headers=data["headers"],
+                headers=data["header"],
             )
 
             if response.status_code == 204:
@@ -265,7 +266,6 @@ async def action_update(call: CallbackQuery) -> None:
     Выводит что можно изменить.
     """
     async with bot.retrieve_data(user_id=call.from_user.id) as data:
-
         await bot.set_state(
             user_id=call.from_user.id,
             state=AllHabitsStates.action_update,
@@ -299,8 +299,24 @@ async def new_data(call: CallbackQuery) -> None:
         data["field"] = call.data.split(".")[1]
 
     if data["field"] == "alert_time":
-        murkup = back_or_delete_alert_time("update")
+        async with httpx.AsyncClient() as client:
+            response: httpx.Response = await client.get(
+                f"{settings.base_url}/user_info",
+                headers=data['header'],
+            )
+        if not response.json()['timezone'] or response.json()['timezone'] == 'UTC':
+            await bot.set_state(
+                user_id=call.from_user.id,
+                state=AllHabitsStates.update_alert_time,
+            )
+            await bot.send_message(
+                chat_id=call.message.chat.id,
+                text="Ваша геолокация не определена.",
+                reply_markup=timezone(),
+            )
+            return
 
+        murkup = back_or_delete_alert_time("update")
     else:
         murkup = back("update")
 
@@ -312,6 +328,54 @@ async def new_data(call: CallbackQuery) -> None:
     )
 
 
+@bot.message_handler(state=AllHabitsStates.update_alert_time, content_types=['location'])
+async def handle_actual_location(message: Message) -> None:
+
+    if message.location is None:
+        await bot.send_message(message.chat.id, "❌ Не удалось получить местоположение")
+        return
+    latitude: float = message.location.latitude
+    longitude: float = message.location.longitude
+    try:
+        tf = TimezoneFinder()
+        user_timezone: str | None = tf.timezone_at(lat=latitude, lng=longitude)
+
+        if user_timezone:
+            async with bot.retrieve_data(user_id=message.from_user.id) as data:
+                data['timezone'] = user_timezone
+                header: Any = data['header']
+            async with httpx.AsyncClient() as client:
+                response: httpx.Response = await client.patch(
+                    f"{settings.base_url}/me",
+                    headers=header,
+                    json={"timezone": str(user_timezone)},
+                )
+            if response.status_code == 200:
+                await bot.set_state(
+                    user_id=message.from_user.id,
+                    state=AllHabitsStates.new_data,
+                )
+                await bot.send_message(
+                    message.chat.id,
+                    "✅ Часовой пояс установлен.\nВведите время оповещения привычки.",
+                    reply_markup=ReplyKeyboardRemove(),
+                )
+            else:
+                await bot.send_message(
+                    message.chat.id,
+                    "Ошибка установки часового пояса.\nПовторите попытку позже.",
+                    reply_markup=ReplyKeyboardRemove(),
+                )
+        else:
+            await bot.send_message(
+                message.chat.id,
+                "❌ Не удалось определить часовой пояс по координатам",
+                )
+
+    except Exception:
+        await bot.send_message(message.chat.id, "❌ Произошла ошибка при определении часового пояса")
+
+
 @bot.callback_query_handler(func=lambda call: call.data == "delete_alert_time")
 @bot.message_handler(state=AllHabitsStates.new_data)
 async def successful_update(message: Message) -> None:
@@ -319,7 +383,10 @@ async def successful_update(message: Message) -> None:
     Обработчик после ввода новых данных.
     Отправляет запрос на ресурс.
     """
-
+    if isinstance(message, CallbackQuery):
+        time = 'Не установлено.'
+    else:
+        time = message.text
     async with bot.retrieve_data(user_id=message.from_user.id) as data:
 
         if isinstance(message, CallbackQuery):
@@ -333,7 +400,7 @@ async def successful_update(message: Message) -> None:
             response: httpx.Response = await client.patch(
                 f"{settings.base_url}/habit/update/{data["habit"]}",
                 json=new_info,
-                headers=data["headers"],
+                headers=data["header"],
             )
 
         if data["field"] == "alert_time" and response.status_code == 200:
@@ -376,14 +443,13 @@ async def successful_update(message: Message) -> None:
 
             if data["field"] == "title":
                 data["habit"] = message.text
-
             await bot.send_message(
                 chat_id=message.from_user.id,
                 text=(
                     f"Привычка успешно изменена!\n\n"
                     f"Название: {response.json()["title"]}\n"
                     f"Описание: {response.json()["description"]}\n"
-                    f"Время оповещения: {response.json()["habits_tracking"][0]["alert_time"]}\n"
+                    f"Время оповещения: {time}\n"
                     f"Осталось дней: {response.json()["habits_tracking"][0]["count"]}"
                 ),
                 reply_markup=update_kb(data["habit"]),
