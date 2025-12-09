@@ -21,7 +21,6 @@ async def login_password(call: CallbackQuery) -> None:
         user_id=call.from_user.id,
         state=UserLoginStates.login_password,
     )
-
     await bot.edit_message_text(
         chat_id=call.message.chat.id,
         text="Введите пароль.",
@@ -76,7 +75,6 @@ async def login_user(message: Message) -> None:
         return
 
     elif response.status_code == 403:
-
         await bot.send_message(
             chat_id=message.chat.id,
             text="Пользователь заблокирован.",
@@ -91,7 +89,6 @@ async def login_user(message: Message) -> None:
         )
 
     elif response.status_code >= 500:
-
         await bot.send_message(
             chat_id=message.chat.id,
             text="Ошибка сервера.",

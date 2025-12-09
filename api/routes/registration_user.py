@@ -41,11 +41,9 @@ async def registration_user(
 
         session.add(new_user)
         await session.commit()
-
+        return new_user
     except IntegrityError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="User already exists.",
         )
-
-    return new_user

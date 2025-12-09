@@ -5,3 +5,4 @@ from . import action_keyboard
 from . import skip_keyboard
 from . import back_keyboard
 from . import update_data_keyboard
+from ..reply import timezone_keyboard

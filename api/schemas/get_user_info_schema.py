@@ -14,3 +14,4 @@ class UserInfoSchema(BaseModel):
     name: str
     surname: str
     logged_in_at: int
+    timezone: str | None = None

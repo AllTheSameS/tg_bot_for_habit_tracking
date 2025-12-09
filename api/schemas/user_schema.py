@@ -17,6 +17,7 @@ class UserRegistrationSchema(BaseModel):
     surname: str
     telegram_id: int
     is_active: bool
+    timezone: str | None = None
     hashed_password: str | bytes
 
 
@@ -24,5 +25,4 @@ class UserLoginSchema(UserRegistrationSchema):
     """
     Схема пользователя при авторизации.
     """
-
     id: int

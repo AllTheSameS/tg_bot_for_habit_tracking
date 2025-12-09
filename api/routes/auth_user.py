@@ -25,7 +25,7 @@ oauth2_scheme: OAuth2PasswordBearer = OAuth2PasswordBearer(
 
 
 async def get_current_token_payload(
-    token: str = Depends(oauth2_scheme),
+    token: Annotated[str, Depends(oauth2_scheme)],
 ) -> dict:
     """Функция декодинга токена."""
     try:
@@ -37,7 +37,7 @@ async def get_current_token_payload(
     except InvalidTokenError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid token error.",
+            detail="Invalid token error.",
         )
 
     return payload
@@ -46,7 +46,7 @@ async def get_current_token_payload(
 async def get_current_auth_user(
     payload: dict = Depends(get_current_token_payload),
     session: AsyncSession = Depends(get_async_session),
-) -> user_schema.UserLoginSchema:
+) -> User:
     """Функция проверки зарегистрирован ли пользователь."""
 
     user: Any = await session.execute(
@@ -54,24 +54,17 @@ async def get_current_auth_user(
     )
 
     if user := user.one_or_none()[0]:
-        return user_schema.UserLoginSchema(
-            id=user.id,
-            name=user.name,
-            surname=user.surname,
-            is_active=user.is_active,
-            telegram_id=user.telegram_id,
-            hashed_password=user.hashed_password,
-        )
+        return user
 
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="token invalid (user not found)",
+        detail="Token invalid (user not found).",
     )
 
 
 async def get_current_active_auth_user(
-    user: user_schema.UserLoginSchema = Depends(get_current_auth_user),
-) -> user_schema.UserLoginSchema:
+    user: User = Depends(get_current_auth_user),
+) -> User:
     """Функция проверки активности пользователя."""
 
     if user.is_active:
@@ -84,9 +77,9 @@ async def get_current_active_auth_user(
 
 
 async def validate_auth_user(
-    user_form: Annotated[OAuth2PasswordRequestForm, Depends()],
+    user_form = Depends(OAuth2PasswordRequestForm),
     session: AsyncSession = Depends(get_async_session),
-):
+) -> User:
     """Функция авторизации пользователя."""
     user = await session.execute(
         select(User).filter(User.telegram_id == int(user_form.username))
@@ -98,7 +91,7 @@ async def validate_auth_user(
 
     except TypeError:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="user not found."
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found."
         )
 
     if not validate_password(
@@ -107,13 +100,13 @@ async def validate_auth_user(
     ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid username or password",
+            detail="Invalid username or password.",
         )
 
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="user inactive",
+            detail="User inactive.",
         )
 
     return user
@@ -142,7 +135,7 @@ async def validate_auth_user(
     },
 )
 async def auth_user_issue_jwt(
-    user: user_schema.UserLoginSchema = Depends(validate_auth_user),
+    user: User = Depends(validate_auth_user),
 ) -> token_schema.TokenSchemas:
     """Cоздание JWT токена."""
 
@@ -151,6 +144,7 @@ async def auth_user_issue_jwt(
         "telegram_id": user.telegram_id,
         "name": user.name,
         "surname": user.surname,
+        "timezone": user.timezone,
     }
 
     token: str = encode_jwt(payload=payload)

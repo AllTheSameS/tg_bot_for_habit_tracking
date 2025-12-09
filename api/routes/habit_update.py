@@ -4,6 +4,7 @@ from api.schemas.habit_schema import HabitSchema
 from api.schemas.habit_update_schema import HabitUpdateSchema
 from api.routes.auth_user import get_current_token_payload
 from api.routes.utils.get_habit_by_title import get_habit_by_title
+from api.routes.utils.create_alert_time import create_alert_time
 from api.database.database import get_async_session
 from api.database.models.habit import Habit
 from api.database.models.habit_trackings import HabitTrackings
@@ -11,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update, select
 from sqlalchemy.exc import CompileError
 
-import pytz
 import datetime
 
 habit_editing_router: APIRouter = APIRouter()
@@ -47,7 +47,6 @@ async def habit_update(
     session: AsyncSession = Depends(get_async_session),
 ) -> HabitSchema:
     """Редактирование привычки."""
-
     habit: Habit = await get_habit_by_title(
         habit_title=habit_title,
         user_id=payload.get("user_id"),
@@ -77,13 +76,11 @@ async def habit_update(
     new_info: dict = habit_info.model_dump(exclude_unset=True, exclude={"alert_time"})
 
     if habit_info.alert_time:
-
         try:
-
-            habit_info.alert_time = datetime.datetime.strptime(
-                habit_info.alert_time,
-                "%H:%M",
-            ).time()
+            habit_info.alert_time = create_alert_time(
+                alert_time_str=habit_info.alert_time,
+                user_timezone=payload['timezone'],
+                )
 
         except ValueError:
 

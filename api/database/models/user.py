@@ -3,7 +3,7 @@
 from api.database.database import Base
 from sqlalchemy import Column
 from sqlalchemy.orm import relationship, Mapped
-from sqlalchemy.dialects.postgresql import VARCHAR, INTEGER, BYTEA, BOOLEAN, BIGINT
+from sqlalchemy.dialects.postgresql import VARCHAR, INTEGER, BYTEA, BOOLEAN, BIGINT, TIME
 
 
 class User(Base):
@@ -27,5 +27,6 @@ class User(Base):
     surname: Column[VARCHAR] = Column(VARCHAR(20), nullable=False)
     is_active: Column[BOOLEAN] = Column(BOOLEAN, default=True)
     hashed_password: Column[BYTEA] = Column(BYTEA)
+    timezone: Column[VARCHAR] = Column(VARCHAR(50), default='UTC')
 
     habits = relationship("Habit", backref="habits")

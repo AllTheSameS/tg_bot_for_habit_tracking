@@ -30,9 +30,9 @@ async def get_info_user(
 ) -> UserInfoSchema:
     """Вывод информации о пользователе."""
     iat = payload.get("iat")
-
     return UserInfoSchema(
         name=user.name,
         surname=user.surname,
         logged_in_at=iat,
+        timezone=user.timezone,
     )

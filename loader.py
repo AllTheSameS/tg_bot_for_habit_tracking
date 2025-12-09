@@ -1,8 +1,7 @@
 """Модуль конфигурации приложения."""
-
+from fastapi import FastAPI
 from telebot.async_telebot import AsyncTeleBot, StateMemoryStorage
 from settings import settings
-from fastapi import FastAPI
 from api import routes
 
 
@@ -12,7 +11,9 @@ bot: AsyncTeleBot = AsyncTeleBot(
     state_storage=storage,
 )
 
+
 routers: tuple = (
+    routes.user_update.user_update_router,
     routes.get_user_info.get_info_user_router,
     routes.auth_user.auth_router,
     routes.registration_user.registration_router,
