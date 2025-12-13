@@ -19,16 +19,25 @@ from apscheduler.job import Job
 import httpx
 
 
+@bot.message_handler(commands=["my_habits"])
 @bot.callback_query_handler(func=lambda call: call.data == "all_habits")
-async def get_all_habits(call: CallbackQuery) -> None:
+async def get_all_habits(message: CallbackQuery | Message) -> None:
     """
 
     Обработчик кнопки 'Вывести все привычки'.
 
     """
+    if isinstance(message, Message):
+        user_id = message.from_user.id
+        chat_id = message.chat.id
+        message_id = message.message_id
+    else:
+        user_id = message.from_user.id
+        chat_id = message.message.chat.id
+        message_id = message.message.message_id
 
     header: dict = await get_header(
-        telegram_id=call.from_user.id,
+        telegram_id=user_id,
     )
 
     if header:
@@ -37,39 +46,38 @@ async def get_all_habits(call: CallbackQuery) -> None:
                 f"{settings.base_url}/habit/all",
                 headers=header,
             )
-
         if response.json():
-
             if response.status_code == 200:
-
-                await bot.edit_message_text(
-                    chat_id=call.message.chat.id,
-                    text="Выберите привычку.",
-                    message_id=call.message.message_id,
-                    reply_markup=habits_kb(response.json()),
-                )
-
+                if isinstance(message, Message):
+                    await bot.send_message(
+                        chat_id=chat_id,
+                        text="Выберите привычку.",
+                        reply_markup=habits_kb(response.json()),
+                    )
+                else:
+                    await bot.edit_message_text(
+                        chat_id=chat_id,
+                        text="Выберите привычку.",
+                        message_id=message_id,
+                        reply_markup=habits_kb(response.json()),
+                    )
                 await bot.set_state(
-                    user_id=call.from_user.id,
+                    user_id=user_id,
                     state=AllHabitsStates.choice_habit,
                 )
-
-                async with bot.retrieve_data(user_id=call.from_user.id) as data:
+                async with bot.retrieve_data(user_id=user_id) as data:
                     data["header"] = header
-
             elif response.status_code == 401:
 
                 await bot.send_message(
-                    chat_id=call.message.chat.id,
+                    chat_id=chat_id,
                     text="Пользователь не авторизован.",
                 )
-
         else:
-
             await bot.edit_message_text(
-                chat_id=call.message.chat.id,
+                chat_id=chat_id,
                 text="У вас нет привычек.\n" "Добавьте новые привычки.",
-                message_id=call.message.message_id,
+                message_id=message_id,
                 reply_markup=create_habit_kb(),
             )
 
@@ -351,6 +359,10 @@ async def handle_actual_location(message: Message) -> None:
                     json={"timezone": str(user_timezone)},
                 )
             if response.status_code == 200:
+                await bot.delete_message(
+                    chat_id=message.chat.id,
+                    message_id=message.id,
+                )
                 await bot.set_state(
                     user_id=message.from_user.id,
                     state=AllHabitsStates.new_data,
