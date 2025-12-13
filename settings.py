@@ -54,6 +54,8 @@ class Bot(BaseModel):
     default_commands: tuple = (
         ("start", "Старт"),
         ("help", "Вывести справку"),
+        ("create_habit", "Создать привычку"),
+        ("my_habits", "Мои привычки"),
     )
 
 

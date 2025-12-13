@@ -15,12 +15,12 @@ from alerts.main import scheduler
 from loader import bot
 
 
+@bot.message_handler(commands=["create_habit"])
 @bot.callback_query_handler(func=lambda call: call.data == "create_habit")
 async def create_habit_title(call: CallbackQuery) -> None:
     """
     Процесс создание новой привычки.
     """
-
     header: dict = await get_header(call.from_user.id)
     if header:
         await bot.set_state(
@@ -117,7 +117,11 @@ async def handle_actual_location(message: Message) -> None:
                     headers=header,
                     json={"timezone": str(user_timezone)},
                 )
-            if response.status_code == 201:
+            if response.status_code == 200:
+                await bot.delete_message(
+                    chat_id=message.chat.id,
+                    message_id=message.id,
+                )
                 await bot.send_message(
                     message.chat.id,
                     "✅ Часовой пояс установлен.\nВведите время оповещения привычки.",
@@ -158,6 +162,10 @@ async def create_new_habit(message: Message) -> None:
             json=data,
             headers=data["header"],
         )
+
+    await bot.delete_state(
+        user_id=message.from_user.id,
+    )
 
     if response.status_code == 201:
         if data["alert_time"]:
@@ -226,7 +234,3 @@ async def create_new_habit(message: Message) -> None:
             text="Ошибка сервера.",
         )
         return
-
-    await bot.delete_state(
-        user_id=message.from_user.id,
-    )
