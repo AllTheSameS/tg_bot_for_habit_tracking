@@ -4,7 +4,8 @@ from api.schemas.habit_schema import HabitSchema
 from api.routes.auth_user import get_current_token_payload
 from api.database.database import get_async_session
 from api.database.models.habit import Habit
-from sqlalchemy import select, Result, Sequence
+from api.database.crud.habit import habit_crud
+from sqlalchemy import Sequence
 from typing import List
 
 
@@ -35,12 +36,9 @@ async def get_all_habits(
 ) -> Sequence:
     """Вывод всех привычек."""
 
-    habits: Result = await session.execute(
-        select(
-            Habit,
-        ).filter(
-            Habit.user_id == payload.get("user_id"),
-        )
+    habits: Sequence[Habit] = await habit_crud.get_all(
+        user_id=payload.get('user_id'),
+        session=session,
     )
 
-    return habits.scalars().all()
+    return habits

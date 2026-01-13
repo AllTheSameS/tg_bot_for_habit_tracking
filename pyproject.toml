@@ -26,6 +26,7 @@ pytz = "^2024.1"
 shapely = "^2.1.2"
 geopy = "^2.4.1"
 timezonefinder = "6.2.0"
+slowapi = "^0.1.9"
 
 
 [build-system]

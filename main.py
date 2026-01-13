@@ -1,5 +1,6 @@
 """Модуль запуска бота."""
 import os
+import logging
 
 from loader import bot
 from telegram_bot import handlers
@@ -10,16 +11,32 @@ from alerts.main import scheduler_start
 
 import asyncio
 
+logger = logging.getLogger('telegram_bot.main')
+
 
 async def start():
-    async with engine.begin() as session:
-        await session.run_sync(Base.metadata.create_all)
+    logger.info("Запуск Telegram бота")
 
-    await scheduler_start()
+    try:
+        logger.info("Создание таблиц базы данных")
+        async with engine.begin() as session:
+            await session.run_sync(Base.metadata.create_all)
+        logger.info("Таблицы базы данных созданы")
 
-    await set_default_commands(bot)
-    bot.add_custom_filter(StateFilter(bot))
-    await bot.infinity_polling()
+        logger.info("Запуск планировщика")
+        await scheduler_start()
+        logger.info("Планировщик запущен")
+
+        logger.info("Установка команд бота")
+        await set_default_commands(bot)
+        bot.add_custom_filter(StateFilter(bot))
+        logger.info("Команды бота установлены, начинаем polling")
+
+        await bot.infinity_polling()
+
+    except Exception as e:
+        logger.error(f"Ошибка при запуске бота: {str(e)}", exc_info=True)
+        raise
 
 
 if __name__ == "__main__":

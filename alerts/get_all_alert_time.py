@@ -33,7 +33,10 @@ async def get_all_alert_time_and_telegram_id() -> List[Tuple[Any]]:
                 HabitTrackings.id,
                 HabitTrackings.alert_time,
                 subquery.c.habit_title,
-            ).where(HabitTrackings.id == subquery.c.habit_id)
+            ).join(
+                subquery,
+                HabitTrackings.habit_id == subquery.c.habit_id
+            )
         )
 
     return all_alert_time.all()

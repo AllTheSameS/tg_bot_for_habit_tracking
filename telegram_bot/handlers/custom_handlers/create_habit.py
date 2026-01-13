@@ -1,14 +1,19 @@
-from typing import Any
+from typing import Any, Dict, List
 from telebot.types import Message, CallbackQuery, ReplyKeyboardRemove
-import httpx
+from httpx import Response
 
-from timezonefinder import TimezoneFinder
-from settings import settings
+from telegram_bot.utils.handle_response import handle_error_api_response
+from telegram_bot.utils.extract_context import extract_context
+from telegram_bot.utils.send_message import send_message
+from telegram_bot.utils.format_title import format_title
+from telegram_bot.utils.actual_location import actual_location
+from telegram_bot.utils.cancel import cancel
+from telegram_bot.utils.format_habit_info import format_habit_info
+from telegram_bot.managers.user_api_client import user_api_client
+from telegram_bot.managers.habit_api_client import habit_api_client
 from telegram_bot.states.states import UserCreateHabitStates
-from telegram_bot.keyboards.inline.main_keyboard import main_menu
-from telegram_bot.keyboards.inline.start_keyboard import registration_or_login
-from telegram_bot.keyboards.inline.skip_keyboard import skip
-from telegram_bot.keyboards.reply.timezone_keyboard import timezone
+from telegram_bot.keyboards.reply_keyboards import reply_keyboard_manager
+from telegram_bot.keyboards.inline_keyboards import inline_keyboard_manager
 from telegram_bot.utils.get_user_token import get_header
 from alerts.reminder_habits import reminder_habits
 from alerts.main import scheduler
@@ -16,221 +21,213 @@ from loader import bot
 
 
 @bot.message_handler(commands=["create_habit"])
-@bot.callback_query_handler(func=lambda call: call.data == "create_habit")
-async def create_habit_title(call: CallbackQuery) -> None:
+@bot.callback_query_handler(func=lambda message: message.data == "create_habit")
+async def create_habit_title(message: Message | CallbackQuery) -> None:
     """
     Процесс создание новой привычки.
     """
-    header: dict = await get_header(call.from_user.id)
+    context: Dict = extract_context(call_or_message=message)
+    header: Dict = await get_header(context['user_id'])
     if header:
         await bot.set_state(
-            user_id=call.from_user.id,
+            user_id=context['user_id'],
             state=UserCreateHabitStates.habit_title,
         )
 
-        async with bot.retrieve_data(
-            user_id=call.from_user.id,
-        ) as data:
+        async with bot.retrieve_data(user_id=context['user_id']) as data:
             data["header"] = header
 
+        await bot.delete_message(
+                chat_id=context['chat_id'],
+                message_id=context['message_id'],
+            )
         await bot.send_message(
-            chat_id=call.from_user.id,
+            chat_id=context['chat_id'],
             text="Введите название привычки.",
+            reply_markup=reply_keyboard_manager.cancel(),
         )
+    else:
+        return
 
 
 @bot.message_handler(state=UserCreateHabitStates.habit_title)
-async def create_habit_description(message: Message):
+async def create_habit_description(message: Message | CallbackQuery) -> None:
     """
     Процесс создание новой привычки.
     После ввода названия привычки.
     """
+    context: Dict = extract_context(call_or_message=message)
+    if context["text"] == 'Отмена':
+        await cancel(
+            bot=bot,
+            user_id=context['user_id'],
+            message_id=context['message_id'],
+            chat_id=context['chat_id'],
+            keyboard=inline_keyboard_manager.main_menu(),
+            )
+        return
+
+    context['text'] = format_title(context['text'])
+    async with bot.retrieve_data(user_id=context['user_id']) as data:
+        data["title"] = context['text']
+    response_data: Response = await habit_api_client.get_all_habits(
+        headers=data['header'],
+    )
+    titles: List = [habit['title'] for habit in response_data.json()]
+    if context['text'] in titles:
+        await bot.send_message(
+            chat_id=context['chat_id'],
+            text="Название уже существует.\nВведите другое название.",
+        )
+        return
     await bot.set_state(
-        user_id=message.from_user.id,
+        user_id=context['user_id'],
         state=UserCreateHabitStates.habit_description,
     )
 
     async with bot.retrieve_data(
-        user_id=message.from_user.id,
+        user_id=context['user_id'],
     ) as data:
-        data["title"] = message.text
+        data["title"] = context['text']
 
     await bot.send_message(
-        chat_id=message.chat.id,
+        chat_id=context['chat_id'],
         text="Введите описание привычки.",
     )
 
 
 @bot.message_handler(state=UserCreateHabitStates.habit_description)
-async def create_habit_alert_time(message: Message) -> None:
+async def create_habit_alert_time(message: Message | CallbackQuery) -> None:
     """
     Процесс создание новой привычки.
     После ввода описания привычки.
     """
+    context: Dict = extract_context(call_or_message=message)
+    if context["text"] == 'Отмена':
+        await cancel(
+            bot=bot,
+            user_id=context['user_id'],
+            message_id=context['message_id'],
+            chat_id=context['chat_id'],
+            keyboard=inline_keyboard_manager.main_menu(),
+            )
+        return
     await bot.set_state(
-        user_id=message.from_user.id,
+        user_id=context['user_id'],
         state=UserCreateHabitStates.habit_alert_time,
     )
-    async with bot.retrieve_data(
-        user_id=message.from_user.id,
-    ) as data:
-        data["description"] = message.text
+    async with bot.retrieve_data(user_id=context['user_id']) as data:
+        data["description"] = context['text']
         header: Any = data['header']
-    async with httpx.AsyncClient() as client:
-        response: httpx.Response = await client.get(
-            f"{settings.base_url}/user_info", headers=header
-        )
-    if not response.json()['timezone'] or response.json()['timezone'] == 'UTC':
+
+    response_data: Response = await user_api_client.get_user(
+        headers=header,
+    )
+    response_data = response_data.json()
+    if not response_data['timezone'] or response_data['timezone'] == 'UTC':
         await bot.send_message(
-            chat_id=message.chat.id,
+            chat_id=context['chat_id'],
             text="Ваша геолокация не определена.",
-            reply_markup=timezone(),
+            reply_markup=reply_keyboard_manager.timezone(),
         )
     else:
+        data['user_timezone'] = response_data['timezone']
         await bot.send_message(
-            chat_id=message.chat.id,
+            chat_id=context['chat_id'],
             text="Введите время оповещения привычки.",
-            reply_markup=skip(),
+            reply_markup=inline_keyboard_manager.skip(),
         )
 
 
 @bot.message_handler(state=UserCreateHabitStates.habit_alert_time, content_types=['location'])
-async def handle_actual_location(message: Message) -> None:
+async def handle_actual_location(message: Message | CallbackQuery) -> None:
+    context: Dict[str, Any] = extract_context(message)
     if message.location is None:
-        await bot.send_message(message.chat.id, "❌ Не удалось получить местоположение")
+        await send_message(
+            bot=bot,
+            chat_id=context["chat_id"],
+            message_id=context["message_id"],
+            text="❌ Не удалось получить местоположение",
+            is_callback=context["is_callback"],
+        )
         return
-
-    latitude: float = message.location.latitude
-    longitude: float = message.location.longitude
-
-    try:
-        tf = TimezoneFinder()
-        user_timezone: str | None = tf.timezone_at(lat=latitude, lng=longitude)
-
-        if user_timezone:
-            async with bot.retrieve_data(user_id=message.from_user.id) as data:
-                data['timezone'] = user_timezone
-                header: Any = data['header']
-            async with httpx.AsyncClient() as client:
-                response: httpx.Response = await client.patch(
-                    f"{settings.base_url}/me",
-                    headers=header,
-                    json={"timezone": str(user_timezone)},
-                )
-            if response.status_code == 200:
-                await bot.delete_message(
-                    chat_id=message.chat.id,
-                    message_id=message.id,
-                )
-                await bot.send_message(
-                    message.chat.id,
-                    "✅ Часовой пояс установлен.\nВведите время оповещения привычки.",
-                    reply_markup=ReplyKeyboardRemove(),
-                )
-            else:
-                await bot.send_message(
-                    message.chat.id,
-                    "Ошибка установки часового пояса.\nПовторите попытку позже.",
-                    reply_markup=ReplyKeyboardRemove(),
-                )
-        else:
-            await bot.send_message(
-                message.chat.id,
-                "❌ Не удалось определить часовой пояс по координатам",
-                )
-
-    except Exception:
-        await bot.send_message(message.chat.id, "❌ Произошла ошибка при определении часового пояса")
+    async with bot.retrieve_data(user_id=context['user_id']) as data:
+        latitude: float = message.location.latitude
+        longitude: float = message.location.longitude
+        location: str = await actual_location(
+            latitude=latitude,
+            longitude=longitude,
+            header=data['header'],
+        )
+        data['user_timezone'] = location['timezone']
+        await bot.delete_message(
+            chat_id=context['chat_id'],
+            message_id=context['message_id'],
+        )
+        await send_message(
+            bot=bot,
+            chat_id=context["chat_id"],
+            message_id=context["message_id"],
+            text="✅ Часовой пояс установлен.\nВведите время оповещения привычки.",
+            reply_markup=ReplyKeyboardRemove(),
+            is_callback=context["is_callback"],
+        )
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "skip")
 @bot.message_handler(state=UserCreateHabitStates.habit_alert_time)
-async def create_new_habit(message: Message) -> None:
-    if isinstance(message, CallbackQuery) or message.text == 'Пропустить':
-        alert_time: None = None
-    else:
-        alert_time: str = message.text
+async def create_new_habit(message: Message | CallbackQuery) -> None:
+    context: Dict[str, Any] = extract_context(call_or_message=message)
+    alert_time: str = context['text']
+    if context['text'] == 'Пропустить':
+        alert_time: str = None
 
-    async with bot.retrieve_data(
-        user_id=message.from_user.id,
-    ) as data:
-        data["alert_time"] = alert_time
-
-    async with httpx.AsyncClient() as client:
-        response: httpx.Response = await client.post(
-            f"{settings.base_url}/habit/create",
-            json=data,
+    async with bot.retrieve_data(user_id=context['user_id']) as data:
+        data['alert_time'] = alert_time
+        response_data: Response = await habit_api_client.create(
+            data=data,
             headers=data["header"],
         )
-
+        response_data = response_data.json()
     await bot.delete_state(
-        user_id=message.from_user.id,
+        user_id=context['user_id'],
     )
-
-    if response.status_code == 201:
-        if data["alert_time"]:
-            alert_time = response.json()["habits_tracking"][0]["alert_time"]
-
-            hour, minute, _ = alert_time.split(":")
+    if response_data:
+        if alert_time is None:
+            alert_time: str = 'Не назначено.'
+        else:
+            alert_time = response_data["habits_tracking"][0]["alert_time"]
+            hour, minute = alert_time[:5].split(":")
 
             scheduler.add_job(
-                id=str(response.json()["id"]),
+                id=str(response_data["id"]),
                 func=reminder_habits,
                 trigger="cron",
                 hour=int(hour),
                 minute=int(minute),
                 args=(
-                    message.from_user.id,
-                    response.json()["title"],
+                    context['user_id'],
+                    response_data["title"],
                 ),
             )
-
-        alert_time = 'Не назначено.'
-
-        if data["alert_time"]:
-            alert_time = data["alert_time"]
-
-        await bot.send_message(
-            chat_id=message.from_user.id,
+        await send_message(
+            bot=bot,
+            chat_id=context["chat_id"],
+            message_id=context["message_id"],
             text=(
-                f"Привычка добавлена!\n\n"
-                f"Название: {response.json()["title"]}\n"
-                f"Описание: {response.json()["description"]}\n"
-                f"Время оповещения: {data["alert_time"]}\n"
-                f"Осталось дней: {response.json()["habits_tracking"][0]["count"]}"
+                f"Привычка добавлена!\n\n{
+                    format_habit_info(
+                        habit_data=response_data,
+                        user_timezone=data['user_timezone'],
+                        )
+                    }"
             ),
-            reply_markup=main_menu(),
+            reply_markup=inline_keyboard_manager.main_menu(),
+            is_callback=context["is_callback"],
         )
 
-    elif response.status_code == 400:
-
-        await bot.send_message(
-            chat_id=message.from_user.id,
-            text="Введите корректное время оповещения. Например, 07:00.\nЛибо попробуйте установить локацию заново.",
+    else:
+        await handle_error_api_response(
+            response=response_data,
+            context=context,
         )
-        return
-
-    elif response.status_code == 401:
-
-        await bot.send_message(
-            chat_id=message.from_user.id,
-            text="Пользователь не авторизован.",
-            reply_markup=registration_or_login(),
-        )
-        return
-
-    elif response.status_code == 409:
-
-        await bot.send_message(
-            chat_id=message.from_user.id,
-            text="Привычка с таким названием уже существует.",
-            reply_markup=main_menu(),
-        )
-        return
-
-    elif response.status_code >= 500:
-        await bot.send_message(
-            chat_id=message.from_user.id,
-            text="Ошибка сервера.",
-        )
-        return

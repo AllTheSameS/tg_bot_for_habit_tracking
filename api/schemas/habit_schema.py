@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List
 from api.schemas.habit_tracking_schema import HabitTrackingSchema
 
@@ -13,9 +13,10 @@ class HabitSchema(BaseModel):
         description: Описание привычки.
         habits_tracking: Схема HabitTracking.
     """
-
     id: int
     user_id: int
     title: str
     description: str
-    habits_tracking: List[HabitTrackingSchema]
+    habits_tracking: List[HabitTrackingSchema] | None
+
+    model_config = ConfigDict(from_attributes=True)
