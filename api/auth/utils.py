@@ -14,7 +14,6 @@ def encode_jwt(
     expire_timedelta: datetime.timedelta | None = None,
 ) -> str:
     """Шифрование токена."""
-
     to_encode: dict = payload.copy()
     now: datetime = datetime.datetime.now(datetime.UTC)
 

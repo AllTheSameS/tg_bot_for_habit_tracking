@@ -2,17 +2,16 @@ from fastapi import APIRouter, Depends, status
 from fastapi.exceptions import HTTPException
 from api.schemas.habit_schema import HabitSchema
 from api.schemas.habit_update_schema import HabitUpdateSchema
-from api.routes.auth_user import get_current_token_payload
-from api.routes.utils.get_habit_by_title import get_habit_by_title
+from api.routes.auth_user import get_current_active_auth_user, get_current_token_payload
 from api.routes.utils.create_alert_time import create_alert_time
 from api.database.database import get_async_session
+from api.database.crud.habit import habit_crud
+from api.database.crud.habit_trackings import habit_trackings_crud
 from api.database.models.habit import Habit
-from api.database.models.habit_trackings import HabitTrackings
+from api.database.models.user import User
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import update, select
 from sqlalchemy.exc import CompileError
-
-import datetime
+from typing import Dict, List
 
 habit_editing_router: APIRouter = APIRouter()
 
@@ -42,102 +41,57 @@ habit_editing_router: APIRouter = APIRouter()
 )
 async def habit_update(
     habit_title: str,
-    habit_info: HabitUpdateSchema,
-    payload: dict = Depends(get_current_token_payload),
+    update_data: HabitUpdateSchema,
+    payload: Dict = Depends(get_current_token_payload),
+    user: User = Depends(get_current_active_auth_user),
     session: AsyncSession = Depends(get_async_session),
 ) -> HabitSchema:
     """Редактирование привычки."""
-    habit: Habit = await get_habit_by_title(
-        habit_title=habit_title,
+    habit: Habit = await habit_crud.get(
+        title=habit_title,
         user_id=payload.get("user_id"),
         session=session,
     )
 
-    if habit is None:
+    if not habit:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Habit not found.",
         )
-
-    if habit_info.title:
-
-        check_title_habit: Habit = await get_habit_by_title(
-            habit_info.title,
-            user_id=payload.get("user_id"),
-            session=session,
-        )
-
-        if check_title_habit:
+    if update_data.title:
+        habits: List[str] = [habit.title for habit in user.habits]
+        if update_data.title != habit_title and update_data.title in habits:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="This name for habit already exists.",
             )
-
-    new_info: dict = habit_info.model_dump(exclude_unset=True, exclude={"alert_time"})
-
-    if habit_info.alert_time:
+    if not update_data.title and not update_data.description:
+        utc_alert_time = create_alert_time(
+            alert_time_str=update_data.alert_time,
+            user_timezone=user.timezone,
+            )
+        utc_alert_time: Dict = {'alert_time': utc_alert_time}
+        await habit_trackings_crud.update(
+                habit_id=habit.id,
+                data=utc_alert_time,
+                session=session,
+            )
+        await session.commit()
+        return habit
+    update_data: Dict = update_data.model_dump(exclude_unset=True, exclude={'alert_time'})
+    if update_data:
         try:
-            habit_info.alert_time = create_alert_time(
-                alert_time_str=habit_info.alert_time,
-                user_timezone=payload['timezone'],
-                )
-
-        except ValueError:
-
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid time format.",
+            updated_habit: Habit = await habit_crud.update(
+                user_id=payload.get("user_id"),
+                title=habit_title,
+                data=update_data,
+                session=session,
             )
-
-        await session.execute(
-            update(
-                HabitTrackings,
-            )
-            .where(
-                HabitTrackings.habit_id == habit.id,
-            )
-            .values(
-                {"alert_time": habit_info.alert_time},
-            )
-        )
-
-        await session.flush()
-
-    if new_info:
-        try:
-
-            new_habit = await session.execute(
-                update(
-                    Habit,
-                )
-                .where(
-                    Habit.user_id == payload.get("user_id"),
-                    Habit.title == habit_title,
-                )
-                .values(
-                    **new_info,
-                )
-                .returning(
-                    Habit,
-                )
-            )
-
             await session.commit()
-
-            return new_habit.scalar()
+            return updated_habit
 
         except CompileError:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Unconsumed column names.",
             )
-
-    else:
-        new_habit = await session.execute(
-            select(Habit).where(
-                Habit.user_id == payload.get("user_id"),
-                Habit.title == habit_title,
-            )
-        )
-
-        return new_habit.scalar()

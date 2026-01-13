@@ -1,11 +1,9 @@
 from fastapi import APIRouter, Depends, status
 from fastapi.exceptions import HTTPException
-from api.schemas.user_schema import UserLoginSchema
-from api.routes.auth_user import get_current_token_payload, get_current_active_auth_user
+from api.routes.auth_user import get_current_token_payload
 from api.database.database import get_async_session
 from api.database.models.habit import Habit
-from api.database.models.habit_trackings import HabitTrackings
-from api.routes.utils.get_habit_by_title import get_habit_by_title
+from api.database.crud.habit import habit_crud
 from sqlalchemy.ext.asyncio import AsyncSession
 
 remove_habit_router = APIRouter()
@@ -34,18 +32,21 @@ async def remove_habit(
     session: AsyncSession = Depends(get_async_session),
 ) -> None:
     """Удаление привычки."""
-
-    habit: Habit = await get_habit_by_title(
-        habit_title=habit_title,
-        session=session,
+    habit: Habit = await habit_crud.get(
+        title=habit_title,
         user_id=payload.get("user_id"),
+        session=session,
     )
 
     if habit:
-        await session.delete(habit)
-        await session.commit()
+        await habit_crud.delete(
+            habit=habit,
+            session=session,
+        )
+        return
 
     else:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Habit not found."
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Habit not found.",
         )

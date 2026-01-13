@@ -2,20 +2,21 @@
 Модуль аутентификации пользователя.
 """
 
+from datetime import datetime, timedelta
 from typing import Annotated
 from fastapi import Depends
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from fastapi import APIRouter, status
 from jwt import InvalidTokenError
-from api.schemas import user_schema
-from api.schemas import token_schema
+from api.schemas import token_schema, payload_schema
 from fastapi.exceptions import HTTPException
 from api.auth.utils import validate_password, encode_jwt, decode_jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 from api.database.database import get_async_session
-from sqlalchemy import select
+from api.database.crud.user import user_crud
 from api.database.models.user import User
-from typing import Any
+from settings import settings
+from typing import Dict
 
 auth_router: APIRouter = APIRouter()
 
@@ -26,15 +27,15 @@ oauth2_scheme: OAuth2PasswordBearer = OAuth2PasswordBearer(
 
 async def get_current_token_payload(
     token: Annotated[str, Depends(oauth2_scheme)],
-) -> dict:
+) -> Dict:
     """Функция декодинга токена."""
     try:
 
-        payload: dict = decode_jwt(
+        payload: Dict = decode_jwt(
             token=token,
         )
 
-    except InvalidTokenError as e:
+    except InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token error.",
@@ -44,16 +45,16 @@ async def get_current_token_payload(
 
 
 async def get_current_auth_user(
-    payload: dict = Depends(get_current_token_payload),
+    payload: Dict = Depends(get_current_token_payload),
     session: AsyncSession = Depends(get_async_session),
 ) -> User:
     """Функция проверки зарегистрирован ли пользователь."""
-
-    user: Any = await session.execute(
-        select(User).filter(User.telegram_id == payload.get("telegram_id"))
+    user: User = await user_crud.get_user(
+        user_id=payload.get("telegram_id"),
+        session=session,
     )
 
-    if user := user.one_or_none()[0]:
+    if user:
         return user
 
     raise HTTPException(
@@ -81,17 +82,14 @@ async def validate_auth_user(
     session: AsyncSession = Depends(get_async_session),
 ) -> User:
     """Функция авторизации пользователя."""
-    user = await session.execute(
-        select(User).filter(User.telegram_id == int(user_form.username))
-    )
-
     try:
-
-        user = user.one_or_none()[0]
-
+        user: User = await user_crud.get_user(
+            user_id=int(user_form.username),
+            session=session,
+        )
     except TypeError:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found."
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found.",
         )
 
     if not validate_password(
@@ -108,7 +106,6 @@ async def validate_auth_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User inactive.",
         )
-
     return user
 
 
@@ -137,19 +134,84 @@ async def validate_auth_user(
 async def auth_user_issue_jwt(
     user: User = Depends(validate_auth_user),
 ) -> token_schema.TokenSchemas:
-    """Cоздание JWT токена."""
+    """Cоздание JWT токенов."""
+    payload: payload_schema.PayloadSchema = payload_schema.PayloadSchema(
+        user_id=user.id,
+        telegram_id=user.telegram_id,
+        name=user.name,
+        surname=user.surname,
+        timezone=user.timezone,
+        habits=user.habits,
+    )
+    access_token: str = encode_jwt(payload=payload.model_dump())
+    refresh_token: str = encode_jwt(
+        payload={"sub": str(user.telegram_id)},
+        expire_timedelta=timedelta(days=settings.auth_jwt.refresh_token_expire_days)
+    )
+    return token_schema.TokenSchemas(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="Bearer",
+    )
 
-    payload: dict = {
-        "user_id": user.id,
-        "telegram_id": user.telegram_id,
-        "name": user.name,
-        "surname": user.surname,
-        "timezone": user.timezone,
-    }
 
-    token: str = encode_jwt(payload=payload)
+@auth_router.post(
+    "/refresh",
+    response_model=token_schema.TokenSchemas,
+    tags=["Authorization"],
+    description="Refresh access token.",
+    responses={
+        status.HTTP_200_OK: {
+            "model": token_schema.TokenSchemas,
+            "description": "Tokens refreshed successfully.",
+        },
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Invalid refresh token",
+        },
+    },
+)
+async def refresh_access_token(
+    refresh_data: token_schema.RefreshTokenSchema,
+    session: AsyncSession = Depends(get_async_session),
+) -> token_schema.TokenSchemas:
+    """Обновление access токена с помощью refresh токена."""
+    try:
+        payload: Dict = decode_jwt(token=refresh_data.refresh_token)
+        telegram_id: str = payload.get("sub")
+        if not telegram_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token.",
+            )
+    except InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token.",
+        )
+
+    user: User = await user_crud.get_user(user_id=int(telegram_id), session=session)
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or inactive.",
+        )
+
+    payload: payload_schema.PayloadSchema = payload_schema.PayloadSchema(
+        user_id=user.id,
+        telegram_id=user.telegram_id,
+        name=user.name,
+        surname=user.surname,
+        timezone=user.timezone,
+        habits=user.habits,
+    )
+    access_token: str = encode_jwt(payload=payload.model_dump())
+    refresh_token: str = encode_jwt(
+        payload={"sub": str(user.telegram_id)},
+        expire_timedelta=timedelta(days=settings.auth_jwt.refresh_token_expire_days)
+    )
 
     return token_schema.TokenSchemas(
-        access_token=token,
+        access_token=access_token,
+        refresh_token=refresh_token,
         token_type="Bearer",
     )

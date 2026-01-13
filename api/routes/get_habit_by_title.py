@@ -3,8 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.database.models.habit import Habit
 from api.schemas.habit_schema import HabitSchema
 from api.routes.auth_user import get_current_token_payload
-from api.routes.utils.get_habit_by_title import get_habit_by_title
 from api.database.database import get_async_session
+from api.database.crud.habit import habit_crud
 
 
 get_habit_by_title_router: APIRouter = APIRouter()
@@ -35,18 +35,15 @@ async def get_habit_title(
 ) -> HabitSchema:
     """Вывод привычки по названию."""
 
-    habit: Habit = await get_habit_by_title(
-        habit_title=habit_title,
-        user_id=payload.get("user_id"),
+    habit: Habit = await habit_crud.get(
+        title=habit_title,
+        user_id=payload.get('user_id'),
         session=session,
     )
 
-    if habit is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Habit not found.",
-        )
-
-    else:
-
+    if habit:
         return habit
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Habit not found.",
+    )

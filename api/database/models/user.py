@@ -1,9 +1,8 @@
 """Модуль таблицы 'users'"""
 
 from api.database.database import Base
-from sqlalchemy import Column
-from sqlalchemy.orm import relationship, Mapped
-from sqlalchemy.dialects.postgresql import VARCHAR, INTEGER, BYTEA, BOOLEAN, BIGINT, TIME
+from sqlalchemy.orm import relationship, Mapped, mapped_column
+from sqlalchemy import String
 
 
 class User(Base):
@@ -21,12 +20,12 @@ class User(Base):
 
     __tablename__ = "users"
 
-    id: Column[INTEGER] = Column(INTEGER, primary_key=True)
-    telegram_id: Column[BIGINT] = Column(BIGINT, nullable=False, unique=True)
-    name: Column[VARCHAR] = Column(VARCHAR(20), nullable=False)
-    surname: Column[VARCHAR] = Column(VARCHAR(20), nullable=False)
-    is_active: Column[BOOLEAN] = Column(BOOLEAN, default=True)
-    hashed_password: Column[BYTEA] = Column(BYTEA)
-    timezone: Column[VARCHAR] = Column(VARCHAR(50), default='UTC')
+    id: Mapped[int] = mapped_column(primary_key=True)
+    telegram_id: Mapped[int] = mapped_column(unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(20))
+    surname: Mapped[str] = mapped_column(String(20))
+    is_active: Mapped[bool] = mapped_column(default=True)
+    hashed_password: Mapped[bytes]
+    timezone: Mapped[str] = mapped_column(String(50), default='UTC')
 
     habits = relationship("Habit", backref="habits")

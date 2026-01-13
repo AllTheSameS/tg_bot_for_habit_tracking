@@ -1,8 +1,10 @@
 """Модуль таблицы 'habit_trackings'"""
 
 from api.database.database import Base
-from sqlalchemy import Column, ForeignKey
-from sqlalchemy.dialects.postgresql import INTEGER, TIME
+from sqlalchemy import ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column
+from datetime import time
+from typing import Optional
 
 
 class HabitTrackings(Base):
@@ -18,9 +20,7 @@ class HabitTrackings(Base):
 
     __tablename__ = "habit_trackings"
 
-    id: Column[INTEGER] = Column(INTEGER, primary_key=True)
-    habit_id: Column[INTEGER] = Column(
-        INTEGER, ForeignKey("habits.id", ondelete="CASCADE"), nullable=False
-    )
-    alert_time: Column[TIME] = Column(TIME())
-    count: Column[INTEGER] = Column(INTEGER, default=21)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    habit_id: Mapped[int] = mapped_column(ForeignKey("habits.id", ondelete="CASCADE"), index=True)
+    alert_time: Mapped[Optional[time]] = mapped_column(index=True)
+    count: Mapped[int] = mapped_column(default=21)

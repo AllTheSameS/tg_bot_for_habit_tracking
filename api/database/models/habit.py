@@ -1,9 +1,8 @@
 """Модуль таблицы 'habits'"""
 
-from sqlalchemy.orm import relationship, Mapped
+from sqlalchemy.orm import relationship, Mapped, mapped_column
 from api.database.database import Base
-from sqlalchemy import Column, ForeignKey
-from sqlalchemy.dialects.postgresql import VARCHAR, INTEGER
+from sqlalchemy import ForeignKey, String
 
 
 class Habit(Base):
@@ -20,12 +19,10 @@ class Habit(Base):
 
     __tablename__ = "habits"
 
-    id: Column[INTEGER] = Column(INTEGER, primary_key=True)
-    user_id: Column[INTEGER] = Column(
-        INTEGER, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
-    title: Column[VARCHAR] = Column(VARCHAR(50), nullable=False)
-    description: Column[VARCHAR] = Column(VARCHAR(300))
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(50), index=True)
+    description: Mapped[str] = mapped_column(String(300))
 
     habits_tracking = relationship(
         "HabitTrackings",

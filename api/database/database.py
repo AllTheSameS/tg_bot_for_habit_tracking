@@ -10,7 +10,10 @@ engine: AsyncEngine = create_async_engine(settings.db.url)
 
 Base: Any = declarative_base()
 async_session: sessionmaker = sessionmaker(
-    bind=engine, expire_on_commit=False, class_=AsyncSession
+    bind=engine,
+    expire_on_commit=False,
+    class_=AsyncSession,
+    autoflush=False,
 )
 
 

@@ -1,143 +1,138 @@
 from loader import bot
 from telebot.types import Message, CallbackQuery
 from telegram_bot.states import states
-from settings import settings
-from telegram_bot.keyboards.inline.start_keyboard import login_kb
-from typing import Any
-import httpx
+from telegram_bot.utils.extract_context import extract_context
+from telegram_bot.utils.send_message import send_message
+from telegram_bot.utils.handle_response import handle_error_api_response
+from telegram_bot.managers.user_api_client import user_api_client
+from telegram_bot.keyboards.inline_keyboards import inline_keyboard_manager
+from typing import Any, Dict
+from httpx import Response
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "registration")
-async def cmd_registration(call: CallbackQuery) -> None:
+async def cmd_registration(message: CallbackQuery | Message) -> None:
     """
     Процесс регистрации.
     После нажатия кнопки "Регистрация"
     """
+    context: Dict[str, Any] = extract_context(call_or_message=message)
 
     await bot.set_state(
-        user_id=call.from_user.id,
+        user_id=context['user_id'],
         state=states.UserRegistrationStates.registration_name,
     )
-    await bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
+    async with bot.retrieve_data(user_id=context['user_id']) as data:
+        data["main_message_id"] = context['message_id']
+    await send_message(
+        bot=bot,
+        chat_id=context["chat_id"],
+        message_id=context["message_id"],
         text="Введите ваше имя.",
         reply_markup=None,
+        is_callback=context["is_callback"],
     )
-    async with bot.retrieve_data(user_id=call.from_user.id) as data:
-        data["main_message_id"] = call.message.message_id
 
 
 @bot.message_handler(state=states.UserRegistrationStates.registration_name)
-async def password_registration(message: Message) -> None:
+async def password_registration(message: CallbackQuery | Message) -> None:
     """
     Процесс регистрации.
     После ввода имени пользователя.
     """
+    context: Dict[str, Any] = extract_context(call_or_message=message)
     await bot.set_state(
-        user_id=message.from_user.id,
+        user_id=context['user_id'],
         state=states.UserRegistrationStates.registration_surname,
     )
 
-    async with bot.retrieve_data(
-        user_id=message.from_user.id,
-    ) as data:
-        data["name"] = message.text
+    async with bot.retrieve_data(user_id=context['user_id']) as data:
+        data["name"] = context['text']
         main_message_id = data["main_message_id"]
 
     await bot.delete_message(
-        chat_id=message.chat.id,
-        message_id=message.id,
+        chat_id=context['chat_id'],
+        message_id=context['message_id'],
     )
-    await bot.edit_message_text(
-        chat_id=message.chat.id,
-        text="Введите вашу фамилию.",
+    await send_message(
+        bot=bot,
+        chat_id=context["chat_id"],
         message_id=main_message_id,
+        text="Введите вашу фамилию.",
+        reply_markup=None,
+        is_callback=True,
     )
 
 
 @bot.message_handler(state=states.UserRegistrationStates.registration_surname)
-async def password_registration(message: Message) -> None:
+async def password_registration(message: CallbackQuery | Message) -> None:
     """
     Процесс регистрации.
     После ввода фамилии пользователя.
     """
+    context: Dict[str, Any] = extract_context(call_or_message=message)
     await bot.set_state(
-        user_id=message.from_user.id,
+        user_id=context['user_id'],
         state=states.UserRegistrationStates.registration_password,
     )
-    async with bot.retrieve_data(
-        user_id=message.from_user.id,
-    ) as data:
-        data["surname"] = message.text
+    async with bot.retrieve_data(user_id=context['user_id']) as data:
+        data["surname"] = context['text']
         main_message_id = data["main_message_id"]
     await bot.delete_message(
-        chat_id=message.chat.id,
-        message_id=message.id,
+        chat_id=context['chat_id'],
+        message_id=context['message_id'],
     )
-
-    await bot.edit_message_text(
-        chat_id=message.chat.id,
-        text="Введите пароль.",
+    await send_message(
+        bot=bot,
+        chat_id=context["chat_id"],
         message_id=main_message_id,
+        text="Введите пароль.",
+        reply_markup=None,
+        is_callback=True,
     )
 
 
 @bot.message_handler(state=states.UserRegistrationStates.registration_password)
-async def registration_user(message: Message) -> None:
+async def registration_user(message: CallbackQuery | Message) -> None:
     """
     Процесс регистрации.
     После ввода пароля пользователя.
     """
-    async with bot.retrieve_data(user_id=message.from_user.id) as data:
+    context: Dict[str, Any] = extract_context(call_or_message=message)
+    async with bot.retrieve_data(user_id=context['user_id']) as data:
         main_message_id: Any = data["main_message_id"]
         user_info: dict = {
             "name": data["name"],
             "surname": data["surname"],
-            "telegram_id": message.from_user.id,
+            "telegram_id": context['user_id'],
             "is_active": True,
-            "hashed_password": message.text,
+            "hashed_password": context['text'],
         }
-    async with httpx.AsyncClient() as client:
-        response: httpx.Response = await client.post(
-            f"{settings.base_url}/registration", json=user_info
+
+    response_data: Response = await user_api_client.registration(
+        data=user_info,
+    )
+
+    if response_data.status_code >= 400:
+        await handle_error_api_response(
+            response=response_data,
+            context=context,
         )
+        return
 
     await bot.delete_message(
-        chat_id=message.chat.id,
-        message_id=message.id,
+        chat_id=context['chat_id'],
+        message_id=context['message_id'],
     )
 
     await bot.delete_state(
-            user_id=message.from_user.id,
+            user_id=context['user_id'],
         )
-
-    if response.status_code == 201:
-        await bot.edit_message_text(
-            chat_id=message.chat.id,
-            text="Вы успешно зарегистрированы.\n",
-            message_id=main_message_id,
-            reply_markup=login_kb(),
-        )
-
-    elif response.status_code == 409:
-        await bot.edit_message_text(
-            chat_id=message.chat.id,
-            text="Пользователь уже существует.",
-            message_id=main_message_id,
-            reply_markup=login_kb(),
-        )
-
-    elif response.status_code == 422:
-        await bot.edit_message_text(
-            chat_id=message.chat.id,
-            text="Не правильно введены данные.",
-            message_id=main_message_id,
-        )
-
-    elif response.status_code >= 500:
-        await bot.edit_message_text(
-            chat_id=message.chat.id,
-            text="Ошибка сервера.",
-            message_id=main_message_id,
-        )
+    await send_message(
+        bot=bot,
+        chat_id=context["chat_id"],
+        message_id=main_message_id,
+        text="Вы успешно зарегистрированы.",
+        reply_markup=inline_keyboard_manager.login(),
+        is_callback=True,
+    )
